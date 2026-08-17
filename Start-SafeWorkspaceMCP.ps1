@@ -101,19 +101,41 @@ function Get-TunnelClientAssetInfo {
 
 function Ensure-TunnelClient {
     param([Parameter(Mandatory = $true)][string]$ToolsRoot)
-    if ([string]::IsNullOrWhiteSpace($TunnelClientPath)) {
-        $exePath = Join-Path $ToolsRoot "$TunnelClientVersion\tunnel-client.exe"
-        if (Test-Path -LiteralPath $exePath -PathType Leaf) {
-            Write-Host "[Safe Workspace MCP] Reusing cached tunnel-client $TunnelClientVersion"
-            return $exePath
-        }
-    }
-    else {
+    if (-not [string]::IsNullOrWhiteSpace($TunnelClientPath)) {
+        # Advanced operator override: the operator vouches for this binary.
+        # The pinned-SHA256 download guarantee is intentionally skipped; we
+        # only require that the target exists and reports a usable version.
         if (-not (Test-Path -LiteralPath $TunnelClientPath -PathType Leaf)) {
             throw "TunnelClientPath not found: $TunnelClientPath"
         }
-        Write-Host "[Safe Workspace MCP] Using operator-provided tunnel-client: $TunnelClientPath"
+        $probeOk = $false
+        $probe = $null
+        $oldEap = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        try {
+            $probe = & $TunnelClientPath --version 2>$null
+            $probeOk = ($LASTEXITCODE -eq 0)
+        }
+        catch {
+            $probeOk = $false
+        }
+        finally {
+            $ErrorActionPreference = $oldEap
+        }
+        if (-not $probeOk -or [string]::IsNullOrWhiteSpace((@($probe) -join ' '))) {
+            throw ("TunnelClientPath does not execute correctly (--version check failed): " + `
+                "$TunnelClientPath. The pinned SHA-256 download guarantee is only " + `
+                'available without -TunnelClientPath.')
+        }
+        Write-Host "[Safe Workspace MCP] ADVANCED OVERRIDE: using operator-provided tunnel-client (pinned SHA-256 guarantee skipped): $TunnelClientPath"
+        Write-Host "[Safe Workspace MCP] tunnel-client --version: $((@($probe) | Select-Object -First 1))"
         return $TunnelClientPath
+    }
+
+    $exePath = Join-Path $ToolsRoot "$TunnelClientVersion\tunnel-client.exe"
+    if (Test-Path -LiteralPath $exePath -PathType Leaf) {
+        Write-Host "[Safe Workspace MCP] Reusing cached tunnel-client $TunnelClientVersion"
+        return $exePath
     }
 
     $asset = Get-TunnelClientAssetInfo
@@ -253,7 +275,6 @@ function Main {
     $configPath = Get-ConfigPathForWorkspace -WorkspaceFullPath $workspacePath -RuntimeDir $runtimeDir
     Write-RuntimeConfig -ConfigPath $configPath -WorkspaceRoot $workspacePath
 
-    $tunnelExe = Ensure-TunnelClient -ToolsRoot $toolsRoot
     $mcpCommand = (ConvertTo-TunnelClientArg -Path $mcpExe) + ' ' + (ConvertTo-TunnelClientArg -Path $configPath)
 
     Write-Host "[Safe Workspace MCP] Workspace : $workspacePath"
@@ -261,10 +282,21 @@ function Main {
     Write-Host "[Safe Workspace MCP] Tunnel ID : $TunnelId"
 
     if ($DryRun) {
+        # Show the intended command without any download or version probe.
+        if (-not [string]::IsNullOrWhiteSpace($TunnelClientPath)) {
+            $tunnelExe = $TunnelClientPath
+            Write-Host "[Safe Workspace MCP] DryRun: ADVANCED OVERRIDE would be used (pinned SHA-256 guarantee skipped): $TunnelClientPath"
+        }
+        else {
+            $tunnelExe = Join-Path $toolsRoot "$TunnelClientVersion\tunnel-client.exe"
+            Write-Host "[Safe Workspace MCP] DryRun: first real run downloads/verifies tunnel-client $TunnelClientVersion if not cached."
+        }
         Write-Host "[Safe Workspace MCP] DryRun: would start:"
         Write-Host "  `"$tunnelExe`" run --mcp.command `"$mcpCommand`""
         return
     }
+
+    $tunnelExe = Ensure-TunnelClient -ToolsRoot $ToolsRoot
 
     if ($null -ne $apiKey) {
         $env:CONTROL_PLANE_API_KEY = $apiKey
