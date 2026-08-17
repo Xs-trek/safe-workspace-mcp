@@ -171,7 +171,7 @@ Point `workspace.root` at an existing source directory **without** `.git`. The i
 - **First run on a new PC**: extract the ZIP, create/select a workspace, run the launcher, provide tunnel credentials. The launcher downloads and verifies the pinned tunnel client automatically.
 - **Second run**: same launcher; the cached tunnel client is reused - no re-download, no reinstall.
 - **Switching projects**: same release, different `-Workspace` path. Each MCP process still serves exactly one fixed workspace (no runtime switching).
-- **Offline install**: pre-download the official `tunnel-client-<version>-windows-<arch>.zip` yourself and point `-TunnelClientPath` at an extracted official `tunnel-client.exe`.
+- **Offline install (advanced)**: pre-download the official `tunnel-client-<version>-windows-<arch>.zip` yourself, verify it against the official `SHA256SUMS.txt`, and point `-TunnelClientPath` at the extracted official `tunnel-client.exe`. This is an advanced operator override: it skips the launcher's pinned SHA-256 guarantee (existence and `--version` are still checked). Not needed for normal use.
 
 ## Testing with MCP Inspector
 

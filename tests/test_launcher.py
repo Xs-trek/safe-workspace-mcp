@@ -192,6 +192,10 @@ def test_launcher_source_invariants() -> None:
     assert "https://github.com/openai/tunnel-client/releases/download/" in src
     assert "v0.0.11" in src
     assert "EB912C86C6CCDE90CDA805CB17009507176A656725CF86C36FABE1901A12E29B" in src.upper()
+    # Advanced override must state the skipped guarantee explicitly.
+    assert "ADVANCED OVERRIDE" in src
+    assert "pinned SHA-256 guarantee skipped" in src
+    assert "--version" in src
 
 
 PIN_BLOCK_TESTS = [
@@ -228,13 +232,13 @@ _FLAG_VALUES = {"-Workspace", "-TunnelId", "-TunnelClientPath", "-StateRoot"}
 
 
 def _invoke_launcher(
-    portable_root: Path, workspace: Path, extra: list[str], use_tunnel_path: bool = True,
+    portable_root: Path, workspace: Path, extra: list[str], use_tunnel_path: bool = False,
     state_root: Path | None = None,
 ) -> subprocess.CompletedProcess[str]:
-    tc = portable_root / "tc.exe"
-    tc.write_bytes(b"placeholder")
     raw = ["-Workspace", str(workspace), "-TunnelId", "tunnel_" + "0" * 31 + "a", "-DryRun"]
     if use_tunnel_path:
+        tc = portable_root / "tc.exe"
+        tc.write_bytes(b"placeholder")
         raw += ["-TunnelClientPath", str(tc)]
     if state_root is not None:
         raw += ["-StateRoot", str(state_root)]
@@ -369,22 +373,14 @@ def test_missing_tunnel_id_env_fallback(tmp_path: Path, portable_tree: Path) -> 
 
 
 @requires_windows_ps
-def test_checksum_mismatch_fail_closed(tmp_path: Path, portable_tree: Path) -> None:
-    """Corrupted cache reuse is impossible (only extracted exe is cached), so
-    prove fail-closed on the hash guard itself: a wrong pinned hash must abort
-    before any launch. We simulate by calling the launcher's Test-FileSha256
-    via AST dot-source of the function definitions only."""
-    content = LAUNCHER.read_text(encoding="utf-8-sig")
-    # Extract functions up to 'function Main' (dot-sourcing the whole script
-    # would run Main).
-    idx = content.index("function Main")
-    funcs = content[:idx]
-    probe = tmp_path / "funcs.ps1"
-    probe.write_text(funcs + "\n", encoding="utf-8")
+def test_checksum_mismatch_fail_closed(tmp_path: Path) -> None:
+    """Prove fail-closed on the hash guard itself: a wrong expected hash must
+    never validate a file (this is the guard the pinned download relies on)."""
+    funcs = _dot_source_functions(tmp_path)
     bad = tmp_path / "bad.zip"
     bad.write_bytes(b"corrupted")
     script = (
-        f". {_ps_quote(str(probe))}; "
+        f". {_ps_quote(str(funcs))}; "
         "if (Test-FileSha256 -Path '" + str(bad).replace("'", "''") + "' "
         "-ExpectedSha256 '0000000000000000000000000000000000000000000000000000000000000000') "
         "{ Write-Output 'MISMATCH-PASSED'; exit 1 } else { Write-Output 'FAIL-CLOSED-OK' }"
@@ -397,10 +393,7 @@ def test_checksum_mismatch_fail_closed(tmp_path: Path, portable_tree: Path) -> N
 @requires_windows_ps
 def test_runtime_config_uses_forward_slashes_and_escapes(tmp_path: Path) -> None:
     """Direct unit test of Write-RuntimeConfig escaping via dot-sourced functions."""
-    content = LAUNCHER.read_text(encoding="utf-8-sig")
-    idx = content.index("function Main")
-    funcs = tmp_path / "funcs.ps1"
-    funcs.write_text(content[:idx] + "\n", encoding="utf-8")
+    funcs = _dot_source_functions(tmp_path)
     out = tmp_path / "out.toml"
     ws = 'D:\\weird "quote" path'
     script = (
@@ -417,21 +410,38 @@ def test_runtime_config_uses_forward_slashes_and_escapes(tmp_path: Path) -> None
     assert 'D:/weird \\"quote\\" path' in written
 
 
+def _dot_source_functions(tmp_path: Path) -> Path:
+    """Write everything before `function Main` (params, constants, functions)
+    to a standalone ps1 so tests can call launcher functions directly."""
+    content = LAUNCHER.read_text(encoding="utf-8-sig")
+    idx = content.index("function Main")
+    funcs = tmp_path / "funcs.ps1"
+    funcs.write_text(content[:idx] + "\n", encoding="utf-8")
+    return funcs
+
+
 @requires_windows_ps
 def test_launcher_downloads_nothing_when_cached(tmp_path: Path, portable_tree: Path) -> None:
-    _copy_launcher(portable_tree)
-    ws = tmp_path / "ws"
-    ws.mkdir()
-    state = tmp_path / "state"
-    tools = state / "tools" / "tunnel-client" / "v0.0.11"
-    tools.mkdir(parents=True, exist_ok=True)
-    cached = tools / "tunnel-client.exe"
+    """Seeded cache must be reused without any download (offline)."""
+    funcs = _dot_source_functions(tmp_path)
+    tools = tmp_path / "state" / "tools" / "tunnel-client"
+    cached_dir = tools / "v0.0.11"
+    cached_dir.mkdir(parents=True, exist_ok=True)
+    cached = cached_dir / "tunnel-client.exe"
     cached.write_bytes(b"cached-binary")
-    r = _invoke_launcher(portable_tree, ws, [], use_tunnel_path=False, state_root=state)
+    script = (
+        f". {_ps_quote(str(funcs))}; "
+        "$TunnelClientPath = ''; "
+        f"$e = Ensure-TunnelClient -ToolsRoot {_ps_quote(str(tools))}; "
+        "Write-Output ('EXE-RESULT: ' + $e)"
+    )
+    r = _run_ps(script)
     assert r.returncode == 0, r.stdout + r.stderr
     assert "Reusing cached tunnel-client" in r.stdout
+    assert "Downloading" not in r.stdout
+    assert f"EXE-RESULT: {cached}" in r.stdout
     assert cached.read_bytes() == b"cached-binary"
-    # Cache isolation: fake cache content must never leak into the real LOCALAPPDATA.
+    # Isolation: the real LOCALAPPDATA cache must not contain the fake binary.
     real_cached = (
         Path(os.environ["LOCALAPPDATA"]) / "SafeWorkspaceMCP" / "tools"
         / "tunnel-client" / "v0.0.11" / "tunnel-client.exe"
@@ -440,17 +450,71 @@ def test_launcher_downloads_nothing_when_cached(tmp_path: Path, portable_tree: P
 
 
 @requires_windows_ps
-def test_launcher_no_network_by_default_when_path_given(
-    tmp_path: Path, portable_tree: Path
-) -> None:
+def test_dryrun_never_downloads(tmp_path: Path, portable_tree: Path) -> None:
     _copy_launcher(portable_tree)
     ws = tmp_path / "ws"
     ws.mkdir()
     state = tmp_path / "state"
-    # -TunnelClientPath skips download entirely; assert no 'Downloading' output.
     r = _invoke_launcher(portable_tree, ws, [], state_root=state)
     assert r.returncode == 0, r.stdout + r.stderr
     assert "Downloading" not in r.stdout
+    assert "SHA-256 verified" not in r.stdout
+    assert "DryRun: would start:" in r.stdout
+
+
+@requires_windows_ps
+def test_tunnel_client_path_override_ok(tmp_path: Path) -> None:
+    """Advanced override: existing executable that answers --version is used,
+    with an explicit skipped-SHA256 notice."""
+    funcs = _dot_source_functions(tmp_path)
+    good = Path(sys.executable)  # a real executable: --version exits 0
+    script = (
+        f". {_ps_quote(str(funcs))}; "
+        f"$TunnelClientPath = {_ps_quote(str(good))}; "
+        f"$e = Ensure-TunnelClient -ToolsRoot {_ps_quote(str(tmp_path / 'tools'))}; "
+        "Write-Output ('EXE-RESULT: ' + $e)"
+    )
+    r = _run_ps(script)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "ADVANCED OVERRIDE" in r.stdout
+    assert "pinned SHA-256 guarantee skipped" in r.stdout
+    assert "--version:" in r.stdout
+    assert f"EXE-RESULT: {good}" in r.stdout
+    assert "Downloading" not in r.stdout
+
+
+@requires_windows_ps
+def test_tunnel_client_path_override_non_executable_fails(tmp_path: Path) -> None:
+    funcs = _dot_source_functions(tmp_path)
+    bogus = tmp_path / "bogus.exe"
+    bogus.write_bytes(b"this is not a valid executable")
+    script = (
+        f". {_ps_quote(str(funcs))}; "
+        f"$TunnelClientPath = {_ps_quote(str(bogus))}; "
+        "try { Ensure-TunnelClient -ToolsRoot 'C:\\nonexistent-tools-root' | Out-Null; "
+        "Write-Output 'UNEXPECTED-SUCCESS'; exit 0 } "
+        "catch { Write-Output ('CAUGHT: ' + $_.Exception.Message); exit 1 }"
+    )
+    r = _run_ps(script)
+    assert r.returncode != 0
+    assert "UNEXPECTED-SUCCESS" not in r.stdout
+    assert "--version check failed" in (r.stdout + r.stderr)
+
+
+@requires_windows_ps
+def test_tunnel_client_path_missing_fails(tmp_path: Path) -> None:
+    funcs = _dot_source_functions(tmp_path)
+    missing = tmp_path / "no-such-tool.exe"
+    script = (
+        f". {_ps_quote(str(funcs))}; "
+        f"$TunnelClientPath = {_ps_quote(str(missing))}; "
+        "try { Ensure-TunnelClient -ToolsRoot 'C:\\nonexistent-tools-root' | Out-Null; "
+        "Write-Output 'UNEXPECTED-SUCCESS'; exit 0 } "
+        "catch { Write-Output ('CAUGHT: ' + $_.Exception.Message); exit 1 }"
+    )
+    r = _run_ps(script)
+    assert r.returncode != 0
+    assert "not found" in (r.stdout + r.stderr)
 
 
 @pytest.mark.skipif(
@@ -458,19 +522,34 @@ def test_launcher_no_network_by_default_when_path_given(
     reason="network test; set SAFE_MCP_E2E_DOWNLOAD=1 to include",
 )
 @requires_windows_ps
-def test_launcher_real_download_and_checksum(tmp_path: Path, portable_tree: Path) -> None:
-    """Full bootstrap path: official download, SHA-256 verify, extract, --version."""
-    _copy_launcher(portable_tree)
-    ws = tmp_path / "ws"
-    ws.mkdir()
-    state = tmp_path / "state"
-    r = _invoke_launcher(portable_tree, ws, [], use_tunnel_path=False, state_root=state)
+def test_launcher_real_download_and_checksum(tmp_path: Path) -> None:
+    """Full bootstrap path against the live official release: download from
+    the pinned URL, SHA-256 verify against the pinned official checksum,
+    extract, probe --version, then reuse the cache on a second call."""
+    funcs = _dot_source_functions(tmp_path)
+    tools = tmp_path / "tools" / "tunnel-client"
+    first = (
+        f". {_ps_quote(str(funcs))}; "
+        "$TunnelClientPath = ''; "
+        f"$e = Ensure-TunnelClient -ToolsRoot {_ps_quote(str(tools))}; "
+        "$v = & $e --version; "
+        "Write-Output ('EXE: ' + $e); Write-Output ('VERSION: ' + $v)"
+    )
+    r = _run_ps(first)
     assert r.returncode == 0, r.stdout + r.stderr
+    assert "Downloading tunnel-client v0.0.11" in r.stdout
     assert "SHA-256 verified" in r.stdout
-    exe = state / "tools" / "tunnel-client" / "v0.0.11" / "tunnel-client.exe"
+    exe = tools / "v0.0.11" / "tunnel-client.exe"
     assert exe.is_file() and exe.stat().st_size > 10_000_000
-    v = _run_ps(f"& {_ps_quote(str(exe))} --version")
-    assert "0.0.11" in v.stdout
-    # Second run must reuse the cache without downloading again.
-    r2 = _invoke_launcher(portable_tree, ws, [], use_tunnel_path=False, state_root=state)
+    assert "VERSION: 0.0.11" in r.stdout
+
+    second = (
+        f". {_ps_quote(str(funcs))}; "
+        "$TunnelClientPath = ''; "
+        f"$e = Ensure-TunnelClient -ToolsRoot {_ps_quote(str(tools))}; "
+        "Write-Output ('EXE: ' + $e)"
+    )
+    r2 = _run_ps(second)
+    assert r2.returncode == 0, r2.stdout + r2.stderr
     assert "Reusing cached tunnel-client" in r2.stdout
+    assert "Downloading" not in r2.stdout

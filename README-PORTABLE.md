@@ -63,8 +63,8 @@ never touches ChatGPT or Codex configuration.
 | `-Workspace <path>` | Workspace folder (must exist; created only with `-CreateWorkspace`) |
 | `-TunnelId <id>` | `tunnel_` + 32 hex chars; falls back to `CONTROL_PLANE_TUNNEL_ID` |
 | `-CreateWorkspace` | Create the workspace folder if missing |
-| `-TunnelClientPath <exe>` | Use an already-downloaded official tunnel-client instead of the cache |
 | `-DryRun` | Show what would run, without starting anything |
+| `-TunnelClientPath <exe>` | **Advanced operator override.** Use an official `tunnel-client.exe` you downloaded and verified yourself instead of the launcher's pinned download. Using it skips the project's pinned SHA-256 guarantee: the launcher only checks the file exists and `--version` executes. Not recommended for normal use. |
 
 The Runtime API Key is read from `CONTROL_PLANE_API_KEY` if set, otherwise
 prompted securely. It is never written to any file, log, or command line.
