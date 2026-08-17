@@ -40,6 +40,7 @@ Copy-Item (Join-Path -Path $repo -ChildPath 'Start-SafeWorkspaceMCP.ps1') -Desti
 Copy-Item (Join-Path -Path $repo -ChildPath 'LICENSE') -Destination $stage
 Copy-Item (Join-Path -Path $repo -ChildPath 'THIRD_PARTY_NOTICES.md') -Destination $stage
 Copy-Item (Join-Path -Path $repo -ChildPath 'README-PORTABLE.md') -Destination $stage
+Copy-Item (Join-Path -Path $repo -ChildPath 'README-PORTABLE.zh-CN.md') -Destination $stage
 
 $zip = Join-Path -Path $repo -ChildPath "dist\safe-workspace-mcp-$Version-windows-x64.zip"
 if (Test-Path -LiteralPath $zip) { Remove-Item -LiteralPath $zip -Force }

@@ -14,6 +14,10 @@ The format follows Keep a Changelog; versioning is SemVer.
 - Release workflow (`.github/workflows/release.yml`): tag-triggered; runs the full gates, builds the portable ZIP, runs the packaged-runtime + launcher test suites, and publishes the ZIP with checksums.
 - Launcher test suite: PowerShell parse check, AST/source invariants (no `Invoke-Expression`, no registry/PATH mutation, no Codex/ChatGPT access, pinned URL/version/hash present), tunnel-client argv-quoting round-trip oracle (ported from the official parser; spaces, Unicode, quotes, apostrophes), config generation/idempotency, workspace and tunnel-ID validation fail-closed, checksum-mismatch fail-closed, cache reuse, and an opt-in real-download E2E test.
 - Packaged-runtime integration test: extracted release exe + official MCP stdio client over a space+Unicode workspace (nine tools, CRUD, checkpoints, `.git` isolation, clean shutdown).
+- Portable guide shipped inside the release ZIP in English (`README-PORTABLE.md`) and Chinese (`README-PORTABLE.zh-CN.md`).
+
+### Verified (v0.1.0 acceptance)
+- Real end-to-end acceptance completed against ChatGPT Web via an OpenAI Secure MCP Tunnel: launcher bootstrap (pinned download, SHA-256 verify, cache), `tunnel-client` foreground run with the packaged server as a stdio child, tunnel readiness, connector discovery with exactly nine tools, workspace_info/read-only checks, `.git` internal-path denial, write flow with pre/post checkpoints, and restore with a pre-restore protection checkpoint. Ctrl+C shut down tunnel-client and the MCP child cleanly; no ChatGPT/Codex configuration was modified.
 
 ### Added
 - Fixed single-workspace stdio MCP server (workspace root from TOML, immutable at runtime).

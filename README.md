@@ -19,7 +19,7 @@ Designed to let a chat model (e.g. ChatGPT with MCP support) safely edit files i
 6. Keep the terminal open; `Ctrl+C` stops everything.
 7. Connect the existing tunnel from ChatGPT Developer Mode - the account-side step you do yourself.
 
-The launcher downloads the official OpenAI tunnel client (pinned `v0.0.11`, SHA-256 verified) on first run and caches it under `%LOCALAPPDATA%\SafeWorkspaceMCP\. No admin rights, no PATH/registry changes. See `README-PORTABLE.md` inside the ZIP for full details.
+The launcher downloads the official OpenAI tunnel client (pinned `v0.0.11`, SHA-256 verified) on first run and caches it under `%LOCALAPPDATA%\SafeWorkspaceMCP\. No admin rights, no PATH/registry changes. See `README-PORTABLE.md` (or the Chinese edition `README-PORTABLE.zh-CN.md`) inside the ZIP for full details.
 
 > Accurate claim: *portable local deployment with no Python/Git/Node installation required; the launcher bootstraps the tested OpenAI tunnel client automatically.* It is not "zero configuration" - you bring the workspace, tunnel ID, runtime key, and ChatGPT account-side setup.
 
