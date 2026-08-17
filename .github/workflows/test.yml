@@ -26,4 +26,13 @@ jobs:
       - name: Type check
         run: mypy
       - name: Test
-        run: pytest tests -v
+        shell: bash
+        run: |
+          set +e
+          pytest tests -v --tb=short -ra 2>&1 | tee pytest.log
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ]; then
+            summary=$(grep -E 'FAILED|ERROR' pytest.log | tail -n 20 | tr '\n' ';')
+            echo "::error title=pytest failure::$summary"
+            exit "$status"
+          fi
