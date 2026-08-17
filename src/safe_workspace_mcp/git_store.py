@@ -33,6 +33,30 @@ if TYPE_CHECKING:
 
 _STAT_REPARSE = 0x400
 
+# Managed-repository identity: a dedicated git config key inside .git.
+# Purpose is mistake-proofing (never accidentally adopting an external
+# repository), NOT cryptographic authentication of the repository owner.
+# A git config key may only contain alphanumeric characters and '-', so
+# the on-disk form is:  [safe-workspace-mcp] managed-repository-format = 1
+_MANAGED_SECTION = b"safe-workspace-mcp"
+_MANAGED_KEY = b"managed-repository-format"
+_SUPPORTED_FORMATS = frozenset({b"1"})
+
+
+def _try_remove_git_dir(git_dir: Path) -> None:
+    """Best-effort removal of a .git created by the current init call.
+
+    Only ever called right after our own failed Repo.init + marker write;
+    a foreign repository cannot be at this path (existence was checked at
+    entry), so removal cannot destroy user repositories.
+    """
+    import shutil
+
+    try:
+        shutil.rmtree(git_dir, ignore_errors=True)
+    except Exception:  # noqa: BLE001, S110 - cleanup must never mask the real error
+        pass
+
 
 def _hook_noop(self: object, *args: object, **kwargs: object) -> None:
     return None
@@ -76,41 +100,100 @@ class GitStore:
 
     # --------------------------------------------------------- lifecycle
 
-    def open_or_init(self) -> str:
-        """Init managed repo + initial snapshot. Returns first checkpoint id."""
+    def open_or_init_managed(self) -> str | None:
+        """Single production entry for the managed-repo lifecycle.
+
+        * no .git            -> create managed repo (marker written before
+                                 the initial snapshot) + initial snapshot;
+                                 returns the first checkpoint id
+        * .git is a verifiably Safe Workspace MCP managed repo
+                             -> reopen it; returns None (no new checkpoint)
+        * anything else      -> ExistingGitRepoError (fail closed; foreign
+                                repositories are never adopted)
+
+        Ownership authority lives HERE (Python MCP core), not in any
+        launcher; the marker is checked on every reopen.
+        """
         root = self._guard.root
         git_dir = root / ".git"
         if git_dir.exists():
-            raise errors.ExistingGitRepoError(
-                "workspace already contains a Git repository; "
-                "v0.1.0 supports managed repositories only"
-            )
+            self._open_managed_existing()
+            return None
         repo = Repo.init(str(root), mkdir=False)
         self._repo = repo
-        # Pin line-ending handling: the managed repo must never rewrite
-        # file contents on checkout, regardless of the user's global git
-        # config (core.autocrlf / core.eol are pinned OFF locally).
-        config = repo.get_config()
-        config.set(b"core", b"autocrlf", b"false")
-        config.set(b"core", b"eol", b"lf")
-        config.write_to_path()
-        if self._list_remotes(repo):
-            repo.close()
-            self._repo = None
-            raise errors.GitError_("unexpected remote configuration")
-        return self.checkpoint("initial snapshot")
+        try:
+            # Pin line-ending handling: the managed repo must never rewrite
+            # file contents on checkout, regardless of the user's global git
+            # config (core.autocrlf / core.eol are pinned OFF locally).
+            config = repo.get_config()
+            config.set(b"core", b"autocrlf", b"false")
+            config.set(b"core", b"eol", b"lf")
+            # Managed-repository identity, written BEFORE the first commit:
+            # if anything below fails, cleanup can safely remove a .git that
+            # carries our marker (or no state at all) without ever touching
+            # a foreign repository.
+            config.set(_MANAGED_SECTION, _MANAGED_KEY, b"1")
+            config.write_to_path()
+            if self._list_remotes(repo):
+                raise errors.GitError_("unexpected remote configuration")
+            return self.checkpoint("initial snapshot")
+        except Exception:
+            # Best-effort rollback of the .git created by THIS call only
+            # (its absence was checked at entry). Keeps fail-closed: a
+            # half-initialized marker-less .git would otherwise wedge the
+            # workspace forever; we never delete anything we did not create.
+            self.close()
+            _try_remove_git_dir(git_dir)
+            raise
 
-    def open_existing(self) -> None:
-        """Attach to a repo previously created by open_or_init()."""
+    def _open_managed_existing(self) -> None:
+        """Attach to a repo previously created by open_or_init_managed().
+
+        Fail closed (ExistingGitRepoError) unless the repository proves it
+        is ours: openable, no remotes, valid managed marker with a
+        supported format version. Foreign `git init` repos - with or
+        without remotes - are rejected, not adopted.
+        """
         git_dir = self._guard.root / ".git"
         if not git_dir.is_dir():
-            raise errors.GitError_("managed repository is missing")
-        repo = Repo(str(self._guard.root))
+            raise errors.ExistingGitRepoError(
+                "workspace contains .git that is not a directory; refusing to start"
+            )
+        try:
+            repo = Repo(str(self._guard.root))
+        except Exception as exc:  # noqa: BLE001 - unreadable/corrupt -> refuse
+            raise errors.ExistingGitRepoError(
+                "workspace .git cannot be opened as a Git repository; refusing to adopt"
+            ) from exc
         self._repo = repo
-        if self._list_remotes(repo):
+        try:
+            if self._list_remotes(repo):
+                raise errors.ExistingGitRepoError(
+                    "existing repository has remotes; managed repositories never do"
+                )
+            self._verify_managed_identity(repo)
+        except errors.ExistingGitRepoError:
             repo.close()
             self._repo = None
-            raise errors.GitError_("unexpected remote configuration")
+            raise
+        except Exception as exc:  # noqa: BLE001
+            repo.close()
+            self._repo = None
+            raise errors.ExistingGitRepoError(
+                f"managed repository validation failed: {exc}"
+            ) from exc
+
+    def _verify_managed_identity(self, repo: Repo) -> None:
+        try:
+            value = repo.get_config().get(_MANAGED_SECTION, _MANAGED_KEY)
+        except Exception:  # noqa: BLE001 - missing section/key/parse error
+            value = None
+        if not isinstance(value, bytes) or value not in _SUPPORTED_FORMATS:
+            raise errors.ExistingGitRepoError(
+                "workspace .git is not a Safe Workspace MCP managed repository "
+                "(managed marker missing or unsupported format version); "
+                "adopting existing repositories is not supported"
+            )
 
     def close(self) -> None:
         if self._repo is not None:

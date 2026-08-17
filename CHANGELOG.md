@@ -3,6 +3,23 @@
 All notable changes to this project are documented here.
 The format follows Keep a Changelog; versioning is SemVer.
 
+## [0.1.1] - 2026-08-18
+
+### Fixed (managed-repository lifecycle)
+- **Restart bug**: v0.1.0's launcher unconditionally rejected any workspace containing `.git`, but the MCP core creates `.git` on first start - so the second launch was always refused. The launcher no longer pre-checks `.git`; ownership (managed vs foreign) is decided solely by the MCP core at startup.
+- **Foreign-repo adoption**: v0.1.0's `open_existing()` accepted any no-remote `.git` as "managed", contradicting the no-adoption security claim. Replaced by a single authoritative entry `open_or_init_managed()` that distinguishes three states: no `.git` -> create managed repo; managed `.git` (proven ours) -> reopen; anything else -> `EXISTING_GIT_REPOSITORY_NOT_SUPPORTED`.
+- **Managed-repository identity**: a `safe-workspace-mcp.managed-repository-format = 1` marker is written into `.git/config` at creation and verified (presence + supported format version) on every reopen. A plain `git init`, clone, marker-less repo, corrupt config, unsupported marker version, or tampered remote is rejected fail-closed.
+- **Init-failure rollback**: if initialization fails after `Repo.init`, the half-created `.git` is best-effort removed so the workspace is not wedged forever; foreign repositories are never deleted.
+- **Launcher stderr handling**: `tunnel-client` structured logs to stderr; under output redirection (`2>&1`/pipes/CI) Windows PowerShell 5.1 converted native stderr to `ErrorRecords` and, with `ErrorActionPreference=Stop`, killed the launcher on the first log line. EAP is now relaxed around the foreground `tunnel-client run` call (same pattern as the `--version` probe).
+
+### Added (lifecycle tests)
+- `tests/test_managed_lifecycle.py`: first-start-creates-managed-repo + restart-succeeds; foreign plain `git init` rejected; foreign repo with remote rejected; managed repo tampered with remote rejected; `.git` without marker fail-closed; unsupported marker version fail-closed; corrupt git config fail-closed; failed-init rollback leaves no zombie `.git`.
+- `tests/test_launcher.py::test_launcher_real_mcp_lifecycle_two_starts`: two real MCP server starts (official stdio client) on the same workspace via the launcher-generated config - first creates `.git` + marker, second reopens; not a DryRun substitute.
+- `tests/test_launcher.py::test_launcher_real_tunnel_lifecycle` (env-gated): full real chain twice - launcher -> pinned official tunnel-client (downloaded + SHA-256 verified) -> packaged MCP child spawned over stdio -> `.git` created on first run and reopened on the second.
+
+### Changed
+- Version bump to 0.1.1. The 9-tool MCP surface, security model, PathGuard, transaction/checkpoint/restore, Dulwich hook neutralization, and `.git` internal-path isolation are unchanged. v0.1.0 tag/release is not modified.
+
 ## [0.1.0] — 2026-08-17
 
 ### Added (portable deployment layer)

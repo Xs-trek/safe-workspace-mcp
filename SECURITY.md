@@ -54,7 +54,7 @@ All writes go through: temp file in the same directory → write → flush → f
 ## Git isolation
 
 - `.git` belongs exclusively to the internal Git store; every file tool rejects it (`INTERNAL_PATH_FORBIDDEN`), including case variants and short-name aliases.
-- The repository is **created and owned by the server**; startup refuses if `.git` already exists. No adoption, no worktrees, no submodules.
+- The repository is **created and owned by the server** and carries a `safe-workspace-mcp.managed-repository-format` marker in `.git/config`. On restart the server reopens the repo only if the marker is present with a supported format version; a foreign `.git` (plain `git init`, a clone, or a marker-less repo) is rejected with `EXISTING_GIT_REPOSITORY_NOT_SUPPORTED`. No adoption, no worktrees, no submodules.
 - **No remotes**: no `fetch/push/pull/clone` code path exists; startup fails if a remote is configured in the managed repo.
 - Git access is library-level (Dulwich). `git.exe` is never invoked.
 - Line-ending translation is pinned off (`core.autocrlf=false`, `core.eol=lf` locally) so checkpoints and restores are byte-exact regardless of the user's global git config.

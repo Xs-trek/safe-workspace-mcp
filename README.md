@@ -139,9 +139,10 @@ On first start with an **empty or plain source directory** (no `.git`), the serv
 
 1. scans the directory (only regular text files are tracked),
 2. initializes a managed repository at `<root>/.git`,
-3. creates the `initial snapshot` checkpoint.
+3. writes a `safe-workspace-mcp.managed-repository-format` marker into `.git/config` (so the repo is provably ours on later restarts),
+4. creates the `initial snapshot` checkpoint.
 
-If the workspace already contains `.git`, startup fails with `EXISTING_GIT_REPOSITORY_NOT_SUPPORTED`. Adopting existing repositories, worktrees, submodules, and remotes are out of scope for v0.1.0.
+On subsequent starts, the server **reopens its own managed repo** (identified by the marker). A workspace containing a foreign `.git` (plain `git init`, a clone, or a repo without the managed marker) is rejected with `EXISTING_GIT_REPOSITORY_NOT_SUPPORTED`. Adopting existing repositories, worktrees, submodules, and remotes remains out of scope.
 
 **Editable ⇒ Recoverable**: every regular file the MCP can modify or delete is tracked in the managed repository, so it can always be restored from a checkpoint. Excluded directories (node_modules, build artifacts, virtualenvs, …) are invisible to every tool — not readable, not writable, not searched, not checkpointed.
 

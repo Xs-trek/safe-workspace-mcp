@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "safe-workspace-mcp"
-version = "0.1.0"
+version = "0.1.1"
 description = "A minimal, security-focused MCP server that provides structured read/write access to exactly one local workspace, with built-in local Git checkpoints and rollback."
 readme = "README.md"
 license = { file = "LICENSE" }

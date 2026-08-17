@@ -135,21 +135,18 @@ Safe Workspace MCP v0.1.0 每个运行中的 MCP 实例只管理一个固定 wor
 New-Item -ItemType Directory -Force "D:\ChatGPT_Workspace\my-project"
 ```
 
-v0.1.0 使用自己管理的本地 Git，因此 workspace **不能已经包含 `.git`**。
+v0.1.1 使用自己管理的本地 Git。workspace 不能已经包含**外部的** `.git` 仓库（即非 Safe Workspace MCP 创建的仓库）。首次启动时，服务会创建自己的 managed `.git` 并写入 `safe-workspace-mcp.managed-repository-format` 标记；之后再次启动会自动重新打开该 managed 仓库。普通的 `git init`、clone 或没有该标记的仓库会被拒绝（`EXISTING_GIT_REPOSITORY_NOT_SUPPORTED`）。
 
-检查：
+如果你不确定目录是否已有 `.git`：
 
 ```powershell
 Test-Path "D:\ChatGPT_Workspace\my-project\.git"
 ```
 
-应返回：
+- 返回 `False`：可以首次使用，服务会创建 managed 仓库。
+- 返回 `True`：如果该目录之前已被 Safe Workspace MCP 使用过，则是 managed 仓库，会被自动重新打开；如果是你自己 `git init` 或 clone 的仓库，服务会拒绝，请改用空目录。
 
-```text
-False
-```
-
-v0.1.0 不接管已有 Git 仓库。
+v0.1.1 不接管已有 Git 仓库、worktree、submodule 或 remote。
 
 首次测试重要项目时，建议先使用项目副本。
 
@@ -300,14 +297,15 @@ Runtime API Key 输入是隐藏的。
 默认支持路径下，Launcher 会：
 
 1. 验证 workspace
-2. 拒绝 v0.1.0 不支持的已有 `.git`
-3. 检查本地 tunnel-client 缓存
-4. 缺失时下载项目固定的 OpenAI 官方 `tunnel-client`
-5. 验证项目固定的 SHA-256
-6. SHA-256 不匹配时立即停止
-7. 创建不包含 Runtime API Key 的运行配置
-8. 启动 `tunnel-client`
-9. 由 tunnel-client 拉起 packaged Safe Workspace MCP stdio 进程
+2. 检查本地 tunnel-client 缓存
+3. 缺失时下载项目固定的 OpenAI 官方 `tunnel-client`
+4. 验证项目固定的 SHA-256
+5. SHA-256 不匹配时立即停止
+6. 创建不包含 Runtime API Key 的运行配置
+7. 启动 `tunnel-client`
+8. 由 tunnel-client 拉起 packaged Safe Workspace MCP stdio 进程
+
+（`.git` 是 managed 还是外部仓库，由 MCP 核心在启动时判断，而非 launcher 预检查；launcher 不检查 `.git`。）
 
 Safe Workspace MCP v0.1.0 固定使用经过项目实际验证的稳定 tunnel-client 版本。
 
@@ -850,16 +848,16 @@ Tunnels: Use
 
 并确认 key 与 Tunnel 属于正确的 Organization/workspace scope。
 
-## workspace 因 `.git` 被拒绝
+## workspace 被拒绝（EXISTING_GIT_REPOSITORY_NOT_SUPPORTED）
 
-这是 v0.1.0 的预期行为。
+Safe Workspace MCP 会自动重新打开自己之前创建的 managed `.git`。它只拒绝**外部**仓库——普通的 `git init`、clone 或没有 `safe-workspace-mcp.managed-repository-format` 标记的仓库。
 
-请使用：
+如果该目录之前被 Safe Workspace MCP 使用过，不应被拒绝；若仍被拒绝，可能是标记被移除或仓库被篡改。否则请使用：
 
 - 空目录
 - 或去除原 `.git` 的项目副本
 
-不要尝试让 v0.1.0 接管重要的已有 Git repository。
+不要尝试让 Safe Workspace MCP 接管重要的已有 Git repository。
 
 ## ChatGPT 阻止写入
 
@@ -920,7 +918,7 @@ https://github.com/openai/tunnel-client
 完整解压 ZIP
         |
         v
-准备一个没有 .git 的 workspace
+准备一个没有外部 .git 的 workspace（MCP 自己创建的可复用）
         |
         v
 创建或复用 OpenAI Secure MCP Tunnel

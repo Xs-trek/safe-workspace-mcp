@@ -221,9 +221,8 @@ function Main {
     }
     $workspacePath = Resolve-WorkspacePath -InputPath $Workspace
 
-    if (Test-Path -LiteralPath (Join-Path $workspacePath '.git')) {
-        throw "The workspace already contains a .git directory. Safe Workspace MCP v0.1.0 manages its own repository and refuses to adopt an existing one. Choose a different workspace."
-    }
+    # Note: .git ownership (managed vs foreign) is decided solely by the MCP
+    # core at startup; the launcher intentionally does NOT pre-check .git.
 
     if ([string]::IsNullOrWhiteSpace($TunnelId)) {
         if (-not [string]::IsNullOrWhiteSpace($env:CONTROL_PLANE_TUNNEL_ID)) {
@@ -307,12 +306,20 @@ function Main {
 
     Write-Host '[Safe Workspace MCP] Starting tunnel-client in the foreground (Ctrl+C to stop)...'
     $exitCode = 1
+    # tunnel-client logs structured INFO lines to stderr. Under output
+    # redirection (2>&1, pipes, CI capture), Windows PowerShell 5.1 turns
+    # native stderr into ErrorRecords; with ErrorActionPreference=Stop that
+    # would kill the launcher on the first log line. Relax EAP around the
+    # foreground run only (same pattern as the --version probe).
+    $oldEap = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
     try {
         & $tunnelExe run --mcp.command $mcpCommand
         $exitCode = $LASTEXITCODE
         if ($null -eq $exitCode) { $exitCode = 0 }
     }
     finally {
+        $ErrorActionPreference = $oldEap
         if ($apiKeySetByUs) {
             Remove-Item Env:\CONTROL_PLANE_API_KEY -ErrorAction SilentlyContinue
         }
