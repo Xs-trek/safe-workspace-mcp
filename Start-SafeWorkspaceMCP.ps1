@@ -209,7 +209,7 @@ function Read-SecretFromSecureString {
         return [System.Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
     }
     finally {
-        [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTRGlobal($bstr)
+        [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
     }
 }
 
