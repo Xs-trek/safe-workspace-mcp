@@ -1,0 +1,65 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "safe-workspace-mcp"
+version = "0.1.0"
+description = "A minimal, security-focused MCP server that provides structured read/write access to exactly one local workspace, with built-in local Git checkpoints and rollback."
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.12"
+authors = [{ name = "Safe Workspace MCP contributors" }]
+keywords = ["mcp", "model-context-protocol", "workspace", "git", "safety"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Version Control :: Git",
+    "Topic :: Security",
+]
+dependencies = [
+    "mcp==2.0.0",
+    "dulwich==1.2.6",
+]
+
+[project.urls]
+Homepage = "https://github.com/Xs-trek/safe-workspace-mcp"
+
+[project.scripts]
+safe-workspace-mcp = "safe_workspace_mcp.__main__:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "anyio>=4.0",
+    "ruff>=0.6",
+    "mypy>=1.11",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/safe_workspace_mcp"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "S", "A"]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests use asserts and (only for link creation on Windows / disarm proof)
+# subprocess; production code under src/ is never granted these.
+"tests/*" = ["S101", "B017", "S603", "S607", "S110", "S404", "ANN"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["src"]

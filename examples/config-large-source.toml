@@ -1,0 +1,18 @@
+# Larger source tree: raise limits, keep generated dirs excluded so
+# checkpoints stay small and restores stay fast.
+[workspace]
+root = "D:/ChatGPT_Workspace/big-project"
+max_file_bytes = 8388608          # 8 MiB per file
+max_read_bytes = 4194304          # 4 MiB per read/search unit
+max_transaction_bytes = 33554432  # 32 MiB per transaction
+max_search_results = 500
+excluded = [
+  "node_modules", "build", "dist", ".venv", "__pycache__",
+  "target", "vendor", ".next", "out", "bin", "obj",
+]
+
+[search]
+include_hidden = false
+
+[server]
+transport = "stdio"
