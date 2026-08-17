@@ -2,7 +2,26 @@
 
 A minimal, security-focused [MCP](https://modelcontextprotocol.io) server that provides structured read/write access to **exactly one local workspace**, with built-in local Git checkpoints and rollback.
 
-Designed to let a chat model (e.g. ChatGPT with MCP support) safely edit files in one project folder — and nothing else.
+Designed to let a chat model (e.g. ChatGPT with MCP support) safely edit files in one project folder - and nothing else.
+
+## Windows portable quick start (no Python, no Git, no Node)
+
+1. Download the Windows release ZIP from [Releases](https://github.com/Xs-trek/safe-workspace-mcp/releases) and extract it.
+2. Prepare a workspace directory (the one folder the server may touch).
+3. Get an OpenAI **Secure MCP Tunnel ID** ([create here](https://platform.openai.com/settings/organization/tunnels)) and a **Runtime API Key** ([create here](https://platform.openai.com/settings/organization/api-keys)).
+4. In the extracted folder run:
+
+   ```powershell
+   .\Start-SafeWorkspaceMCP.ps1 -Workspace "D:\ChatGPT_Workspace\demo" -TunnelId "tunnel_..."
+   ```
+
+5. Enter the Runtime API Key when prompted (hidden input, never stored).
+6. Keep the terminal open; `Ctrl+C` stops everything.
+7. Connect the existing tunnel from ChatGPT Developer Mode - the account-side step you do yourself.
+
+The launcher downloads the official OpenAI tunnel client (pinned `v0.0.11`, SHA-256 verified) on first run and caches it under `%LOCALAPPDATA%\SafeWorkspaceMCP\. No admin rights, no PATH/registry changes. See `README-PORTABLE.md` inside the ZIP for full details.
+
+> Accurate claim: *portable local deployment with no Python/Git/Node installation required; the launcher bootstraps the tested OpenAI tunnel client automatically.* It is not "zero configuration" - you bring the workspace, tunnel ID, runtime key, and ChatGPT account-side setup.
 
 ## What it is
 
@@ -21,20 +40,25 @@ If a capability is not listed below, this server does not have it.
 ## Architecture
 
 ```
-MCP client (ChatGPT Desktop / Web / Inspector / any MCP host)
-        │  MCP over stdio (directly, or via the host's secure tunnel)
+ChatGPT / any MCP client
+        │
+OpenAI Secure MCP Tunnel (account-side, outbound-only)
+        │
+tunnel-client.exe            <- external deployment layer (official OpenAI binary,
+        │                       pinned + SHA-256 verified by the launcher)
+        │ MCP over stdio (child process)
         ▼
-Safe Workspace MCP
+Safe Workspace MCP           <- this project (9 tools, no network, no exec)
         │
    fixed single workspace
         │
-  ┌─────┴─────────────┐
-  │                   │
+   ┌────┴─────────────┐
+   │                   │
 structured file CRUD   managed local Git checkpoints
 ```
 
 - Web search / URL fetching is done by the chat host itself; this server has no network capability by design.
-- The tunnel client (if your host needs one to reach a local stdio server) is an external deployment component, not part of this project.
+- The tunnel client is an external deployment component, not part of this server: the server process itself never opens sockets, and the launcher's only network activity is downloading the pinned, checksum-verified official tunnel client.
 
 ## The nine tools
 
@@ -54,14 +78,10 @@ structured file CRUD   managed local Git checkpoints
 
 ## Installation
 
-Requires Python 3.12+.
+Two supported paths:
 
-```
-py -3.12 -m venv .venv
-.venv\Scripts\pip install safe-workspace-mcp
-```
-
-or from source:
+- **End user (Windows)**: download the portable release ZIP - no Python/Git/Node required (see quick start above).
+- **Developer / Linux**: source checkout with Python 3.12+:
 
 ```
 git clone https://github.com/Xs-trek/safe-workspace-mcp.git
@@ -70,7 +90,7 @@ py -3.12 -m venv .venv
 .venv\Scripts\pip install -e .
 ```
 
-Runtime dependencies: `mcp` (official SDK), `dulwich`, Python stdlib. Nothing else.
+Runtime dependencies: `mcp==2.0.0` (official SDK), `dulwich==1.2.6`, Python stdlib. Nothing else. End-user prerequisites for the portable release are only: Windows 10/11, PowerShell, internet for the tunnel, a workspace folder, tunnel ID + Runtime API Key, and your own ChatGPT account setup.
 
 ## Configuration
 
@@ -146,6 +166,13 @@ safe-workspace-mcp project-b.toml
 
 Point `workspace.root` at an existing source directory **without** `.git`. The initial snapshot commits the current state as the baseline; from then on the directory is managed. Large generated directories should be added to `excluded`.
 
+## Portable usage scenarios (Windows)
+
+- **First run on a new PC**: extract the ZIP, create/select a workspace, run the launcher, provide tunnel credentials. The launcher downloads and verifies the pinned tunnel client automatically.
+- **Second run**: same launcher; the cached tunnel client is reused - no re-download, no reinstall.
+- **Switching projects**: same release, different `-Workspace` path. Each MCP process still serves exactly one fixed workspace (no runtime switching).
+- **Offline install**: pre-download the official `tunnel-client-<version>-windows-<arch>.zip` yourself and point `-TunnelClientPath` at an extracted official `tunnel-client.exe`.
+
 ## Testing with MCP Inspector
 
 ```
@@ -156,15 +183,16 @@ npx @modelcontextprotocol/inspector .venv\Scripts\safe-workspace-mcp -- args/con
 
 ## Connecting ChatGPT Desktop / ChatGPT Web
 
-ChatGPT connects to local MCP servers through its own supported mechanism (Developer Mode / connectors / a secure MCP tunnel provided by OpenAI or a third party). **This project is only the stdio server** — it contains no tunnel, no OAuth, no credentials handling.
+ChatGPT reaches a local MCP server through OpenAI's Secure MCP Tunnel (Developer Mode / connectors). **This project is only the stdio server plus an operator-run launcher** - it contains no tunnel transport, no OAuth, no credentials storage, and it never reads or writes ChatGPT/Codex configuration.
 
 Recommended flow:
 
 1. Pass the full local test suite with a disposable workspace (see above).
-2. In your ChatGPT app, add a new developer/app connector entry pointing at your tunnel or local server, using the launch command shown above.
-3. Use a dedicated test workspace first, then switch the config to your real project.
+2. Create a Secure MCP Tunnel in the OpenAI Platform and run the portable launcher (or `tunnel-client run` yourself) with that tunnel ID.
+3. In ChatGPT, connect the existing tunnel as a developer/app connector while the launcher terminal is running.
+4. Use a dedicated test workspace first, then switch the config to your real project.
 
-Always configure ChatGPT manually in its UI. This project never reads or writes ChatGPT/Codex configuration files.
+Always configure ChatGPT manually in its UI.
 
 ## Security overview
 

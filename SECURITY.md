@@ -66,11 +66,29 @@ All writes go through: temp file in the same directory → write → flush → f
 - No compiler, test runner, package manager, or eval/exec anywhere.
 - One evidence-backed runtime hardening is applied: dulwich's git-hook execution is neutralized at import time (see below), because dulwich executes `hooks["post-commit"]` unconditionally on every commit — a real subprocess attempt per checkpoint — which would execute any binary planted at `.git/hooks/post-commit`. `PathGuard`'s `.git` isolation is the first line of defense; the hook neutralization is an independent second layer, regression-tested with planted hook files.
 - We deliberately do **not** monkeypatch `subprocess`/`socket` globally at runtime: it guards no real attack path (business code is statically forbidden from those APIs) and would break legitimate infrastructure (asyncio's event loop on Windows needs socket pairs).
+- **Scope note (portable deployment layer)**: the "no subprocess" guarantee covers the MCP server's business stack - every tool call stays within the server process. The release launcher and the OpenAI tunnel client are separate operator-run components that naturally create processes (launcher -> tunnel-client -> MCP child). That is operator-controlled deployment process creation, not a model capability; there is still no path from tool arguments to any process-creation API.
 
 ## No local network tools
 
 - No HTTP client, no socket usage, no DNS, no downloads, no web search/fetch tools. The MCP server speaks stdio only. (A tunnel client you run to expose this server to a remote host is external infrastructure, not part of this project.)
 - AST tests forbid network imports and network calls in production code; the model has no tool that reaches any network primitive.
+
+## Deployment layer (portable release) - separate trust boundary
+
+The portable Windows release adds an **operator-controlled launcher** (`Start-SafeWorkspaceMCP.ps1`) and bridges to ChatGPT through the official OpenAI Secure MCP Tunnel client. These are deployment components and are deliberately *not* part of the MCP server's capability surface:
+
+```
+MCP server capability        : 9 structured file/Git tools, no exec, no network
+deployment launcher          : PowerShell script run by the human operator
+Secure MCP Tunnel transport  : official OpenAI tunnel-client binary (outbound-only)
+```
+
+- **Launcher network activity**: on first run the launcher downloads the pinned official `tunnel-client` release asset from `github.com/openai/tunnel-client` and verifies it against a pinned SHA-256 from the official `SHA256SUMS.txt`. Checksum mismatch aborts (fail closed). The URL, version, and hash are constants in the script - they cannot be influenced by workspace content, config, model output, or tool arguments (workspace files are never read by the launcher; only the workspace *path* is embedded into a generated TOML as data).
+- **Credentials**: the Runtime API Key is read from `CONTROL_PLANE_API_KEY` or prompted via `Read-Host -AsSecureString`; it exists only in process memory and the child environment, is never written to any file/log/argv, and is removed from the environment on exit. Tunnel ID is treated as non-secret.
+- **Process creation**: the launcher starts `tunnel-client.exe`, which starts the MCP server as a stdio child. This is operator-controlled deployment process creation, identical in kind to an operator running the server manually. It does not add any model-triggerable execution capability: the model cannot reach the launcher, the downloader, or the tunnel client through any MCP tool.
+- **No persistent state**: cache and generated config live under `%LOCALAPPDATA%\SafeWorkspaceMCP\`; no registry, PATH, services, scheduled tasks, or execution-policy changes; no admin rights; nothing is installed system-wide.
+- **No ChatGPT/Codex access**: the launcher never touches ChatGPT or Codex binaries, configuration, AppData, or plugin state, and never invokes tunnel-client's Codex plugin/runtimes commands. Account-side connector setup stays with the user.
+- **Binary provenance**: the portable server itself is built with PyInstaller from the exact pinned dependencies (`mcp==2.0.0`, `dulwich==1.2.6`) in the release workflow; the bundled closure and licenses are listed in `THIRD_PARTY_NOTICES.md`.
 
 ## Resource limits
 

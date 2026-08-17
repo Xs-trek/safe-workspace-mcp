@@ -24,3 +24,10 @@ Thumbs.db
 test-config/
 runtime/
 *.log
+
+# Packaging / release outputs
+dist/
+_pyi_dist/
+_pyi_build/
+*.spec.bak
+release-staging/
