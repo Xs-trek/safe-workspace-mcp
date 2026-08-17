@@ -1,0 +1,6 @@
+# Minimal disposable test workspace
+[workspace]
+root = "D:/ChatGPT_Workspace/mcp-test"
+
+[server]
+transport = "stdio"
