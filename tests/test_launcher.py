@@ -28,6 +28,10 @@ import pytest
 REPO = Path(__file__).resolve().parents[1]
 LAUNCHER = REPO / "Start-SafeWorkspaceMCP.ps1"
 
+requires_windows_ps = pytest.mark.skipif(
+    sys.platform != "win32", reason="requires Windows PowerShell 5.1"
+)
+
 
 # ---------------------------------------------------------------------------
 # tunnel-client parseCommandArgv (ported from
@@ -139,6 +143,7 @@ def _run_ps(script: str, workdir: Path | None = None) -> subprocess.CompletedPro
     )
 
 
+@requires_windows_ps
 def test_powershell_parse_ok() -> None:
     ps = (
         "$errs = $null; "
@@ -204,10 +209,6 @@ def test_checksum_is_exact_official_value() -> None:
 # ---------------------------------------------------------------------------
 # Real PowerShell behavior: config generation (spaces / Unicode / idempotency)
 # ---------------------------------------------------------------------------
-
-requires_windows_ps = pytest.mark.skipif(
-    sys.platform != "win32", reason="requires Windows PowerShell 5.1"
-)
 
 
 @pytest.fixture()
@@ -344,6 +345,7 @@ def test_bad_tunnel_id_rejected(tmp_path: Path, portable_tree: Path) -> None:
     assert "tunnel" in (r.stdout + r.stderr).lower()
 
 
+@requires_windows_ps
 def test_missing_tunnel_id_env_fallback(tmp_path: Path, portable_tree: Path) -> None:
     _copy_launcher(portable_tree)
     ws = tmp_path / "ws"
@@ -367,7 +369,6 @@ def test_missing_tunnel_id_env_fallback(tmp_path: Path, portable_tree: Path) -> 
 
 
 @requires_windows_ps
-@pytest.mark.skipif(sys.platform != "win32", reason="Windows launcher")
 def test_checksum_mismatch_fail_closed(tmp_path: Path, portable_tree: Path) -> None:
     """Corrupted cache reuse is impossible (only extracted exe is cached), so
     prove fail-closed on the hash guard itself: a wrong pinned hash must abort
