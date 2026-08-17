@@ -5,6 +5,16 @@ The format follows Keep a Changelog; versioning is SemVer.
 
 ## [0.1.0] — 2026-08-17
 
+### Added (portable deployment layer)
+- Portable Windows release: PyInstaller onedir bundle (no Python/Git/Node required on the target machine), built from the exact pinned dependencies in the tag-triggered release workflow.
+- `Start-SafeWorkspaceMCP.ps1`: single idempotent launcher - first-run bootstrap plus foreground launcher. Generates the per-workspace runtime config (secret-free) under `%LOCALAPPDATA%\SafeWorkspaceMCP\runtime\`, downloads the pinned official OpenAI tunnel-client (`v0.0.11`) with SHA-256 verification against the official `SHA256SUMS.txt` (fail-closed), caches it per version, and runs `tunnel-client run --mcp.command ...` with the packaged server as a stdio child.
+- Runtime API Key handling: read from `CONTROL_PLANE_API_KEY` or prompted via `Read-Host -AsSecureString`; never written to disk, argv, config, or logs; environment cleaned on exit. Tunnel ID treated as non-secret.
+- `packaging/`: PyInstaller spec (tracked), entry wrapper, and `build-portable.ps1` release builder producing the ZIP plus `SHA256SUMS.txt`.
+- `THIRD_PARTY_NOTICES.md`: bundled runtime dependency closure with versions and licenses, generated from the real build environment.
+- Release workflow (`.github/workflows/release.yml`): tag-triggered; runs the full gates, builds the portable ZIP, runs the packaged-runtime + launcher test suites, and publishes the ZIP with checksums.
+- Launcher test suite: PowerShell parse check, AST/source invariants (no `Invoke-Expression`, no registry/PATH mutation, no Codex/ChatGPT access, pinned URL/version/hash present), tunnel-client argv-quoting round-trip oracle (ported from the official parser; spaces, Unicode, quotes, apostrophes), config generation/idempotency, workspace and tunnel-ID validation fail-closed, checksum-mismatch fail-closed, cache reuse, and an opt-in real-download E2E test.
+- Packaged-runtime integration test: extracted release exe + official MCP stdio client over a space+Unicode workspace (nine tools, CRUD, checkpoints, `.git` isolation, clean shutdown).
+
 ### Added
 - Fixed single-workspace stdio MCP server (workspace root from TOML, immutable at runtime).
 - Nine tools: `workspace_info`, `list_directory`, `read_file`, `search_text`, `apply_changes`, `git_status`, `git_diff`, `git_history`, `git_restore`, with correct read-only annotations.

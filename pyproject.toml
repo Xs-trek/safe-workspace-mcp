@@ -40,6 +40,9 @@ dev = [
     "ruff>=0.6",
     "mypy>=1.11",
 ]
+packaging = [
+    "pyinstaller==6.22.1",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/safe_workspace_mcp"]

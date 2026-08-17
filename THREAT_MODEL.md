@@ -34,6 +34,18 @@ The single hard boundary is the MCP tool-call interface. Everything arriving thr
 | `safe_workspace_mcp` code | small, static, boring by design; test-enforced invariants |
 | Startup TOML | written by the user, not reachable from any tool |
 
+### Portable release (deployment layer, separate from the MCP server)
+
+| Component | Why trusted / how verified |
+|---|---|
+| PyInstaller-bundled Python runtime | built in the release workflow from the exact pinned dependencies; closure + licenses documented in `THIRD_PARTY_NOTICES.md` |
+| `Start-SafeWorkspaceMCP.ps1` launcher | operator-run; reviewed script, AST-tested invariants (no Invoke-Expression, no registry/PATH mutation, no Codex/ChatGPT access) |
+| OpenAI `tunnel-client` binary | downloaded from the official GitHub release at a pinned version (`v0.0.11`), verified against the pinned official SHA-256 before first use; fail-closed on mismatch |
+
+The launcher's download URL, version, and hash are constants in the script.
+Workspace content, MCP tool arguments, and config files cannot influence them -
+so workspace prompt injection cannot redirect deployment-time downloads.
+
 ## Untrusted inputs
 
 - Tool arguments (paths, text, hashes, checkpoint ids) — fully validated, fail-closed.
@@ -63,8 +75,12 @@ Each absence is enforced by AST-based static tests over the production package (
 | `.git` tampering via file tools | internal-path rejection + GitStore sole owner |
 | Hook/filter execution inside dulwich | hooks neutralized at import (post-commit runs unconditionally otherwise); `no_verify=True`; no filters, no signing, no remotes ever configured; `.git` unreachable via tools (first line of defense) |
 | Resource exhaustion (huge files, huge transactions, search floods) | startup-fixed limits, fail closed |
-| Prompt injection → destructive edits | capability containment + diff-before-restore + automatic pre-restore checkpoints; **not prevention** |
+| Prompt injection -> destructive edits | capability containment + diff-before-restore + automatic pre-restore checkpoints; **not prevention** |
 | Info leak via error messages | stable error codes only; no tracebacks, no absolute host paths in tool responses |
+| Supply-chain: tampered tunnel-client download | pinned official URL + pinned SHA-256 from official `SHA256SUMS.txt`; mismatch deletes the file and aborts (fail closed); cached copy per version under `%LOCALAPPDATA%` |
+| Supply-chain: workspace influencing the launcher | launcher reads only the workspace *path* (as data); never reads workspace files, never executes workspace content; download constants are script constants |
+| Credential theft via launcher | Runtime API Key only in memory/child env via SecureString prompt or `CONTROL_PLANE_API_KEY`; never in argv/config/logs; env cleared on exit |
+| Tunnel transport abusing the MCP child slot | the MCP command is built solely from the launcher's own packaged exe + generated config path; the model/workspace cannot alter `--mcp.command` |
 
 ## Residual risks (accepted for v0.1.0)
 
@@ -87,5 +103,7 @@ An OS-level sandbox guards against a process with broad authority. This process 
 - Compromise of the host OS or of the user account (game over by definition).
 - Malice or bugs in the MCP client/host application itself.
 - Supply-chain compromise of Python or the two pinned dependencies (mitigated by pinning + review, not solved).
+- Supply-chain compromise of the OpenAI tunnel-client release itself (we verify integrity against the official checksum; a malicious-but-authentic official release is beyond our detection).
+- Compromise of the user's OpenAI account / tunnel credentials (account-side threat).
 - Physical/local access attacks.
 - Availability of the machine (crash, power loss) — durability is best-effort (fsync on writes), not transactional across the whole repo.
