@@ -133,6 +133,12 @@ def test_tunnel_command_two_args() -> None:
 
 
 def _run_ps(script: str, workdir: Path | None = None) -> subprocess.CompletedProcess[str]:
+    # Windows PowerShell 5.1 must never inherit a PowerShell 7 (pwsh) PSModulePath:
+    # module autoload would then find Core-edition built-ins (e.g.
+    # Microsoft.PowerShell.Security) and fail to load them. With the variable
+    # absent, powershell.exe rebuilds its native default module path. This
+    # mirrors launch contexts that are not children of a pwsh session.
+    env = {k: v for k, v in os.environ.items() if k.upper() != "PSMODULEPATH"}
     return subprocess.run(
         ["powershell", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
          "-Command", script],
@@ -140,6 +146,7 @@ def _run_ps(script: str, workdir: Path | None = None) -> subprocess.CompletedPro
         text=True,
         timeout=120,
         cwd=workdir,
+        env=env,
     )
 
 
@@ -364,11 +371,7 @@ def test_missing_tunnel_id_env_fallback(tmp_path: Path, portable_tree: Path) -> 
         f"-Workspace {_ps_quote(str(ws))} -DryRun "
         f"-TunnelClientPath {_ps_quote(str(tc))} -StateRoot {_ps_quote(str(state))}"
     )
-    r = subprocess.run(
-        ["powershell", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
-         "-Command", script],
-        capture_output=True, text=True, timeout=120, cwd=tmp_path,
-    )
+    r = _run_ps(script, workdir=tmp_path)
     assert r.returncode == 0, r.stdout + r.stderr
     assert "tunnel_" + "a" * 32 in r.stdout
 
