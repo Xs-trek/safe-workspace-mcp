@@ -26,6 +26,7 @@ operations re-validate after creation (see FileService).
 
 from __future__ import annotations
 
+import errno
 import os
 import stat
 import unicodedata
@@ -162,6 +163,10 @@ class PathGuard:
             except FileNotFoundError:
                 return cur, i
             except OSError as exc:
+                if exc.errno == errno.ENOTDIR:
+                    raise errors.DirectoryExpectedError(
+                        f"a parent component is not a directory: {part}"
+                    ) from exc
                 raise errors.PathError(f"cannot inspect path component: {exc}") from exc
             if self._reject_reparse_points and (
                 stat.S_ISLNK(st.st_mode) or _is_reparse_point(st)
