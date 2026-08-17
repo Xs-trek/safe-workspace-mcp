@@ -60,11 +60,9 @@ def build_server(config: Config) -> MCPServer:
     git = GitStore(config, guard)
     tx = TransactionManager(config, files, git)
 
-    # Managed-git lifecycle: attach to managed repo or init a fresh one.
-    if (guard.root / ".git").exists():
-        git.open_existing()
-    else:
-        git.open_or_init()
+    # Managed-git lifecycle (single authoritative entry): create a fresh
+    # managed repo, reopen our own managed repo, or refuse a foreign one.
+    git.open_or_init_managed()
 
     server = MCPServer(
         "safe-workspace-mcp",

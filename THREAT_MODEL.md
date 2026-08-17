@@ -73,6 +73,7 @@ Each absence is enforced by AST-based static tests over the production package (
 | Partial multi-file edit on failure | validate-all-first, journal, precise rollback + checkpoint sync |
 | Unrecoverable deletion | every writable file is tracked ⇒ Editable⇒Recoverable; pre-checkpoints before every change and every restore |
 | `.git` tampering via file tools | internal-path rejection + GitStore sole owner |
+| Foreign-repo adoption (user runs MCP in a directory that already has a `.git`) | the server reopens a repo only if `.git/config` carries the `safe-workspace-mcp.managed-repository-format` marker at a supported version; a plain `git init` / clone / marker-less repo is rejected with `EXISTING_GIT_REPOSITORY_NOT_SUPPORTED` (fail closed); a managed repo tampered to add a remote is also rejected |
 | Hook/filter execution inside dulwich | hooks neutralized at import (post-commit runs unconditionally otherwise); `no_verify=True`; no filters, no signing, no remotes ever configured; `.git` unreachable via tools (first line of defense) |
 | Resource exhaustion (huge files, huge transactions, search floods) | startup-fixed limits, fail closed |
 | Prompt injection -> destructive edits | capability containment + diff-before-restore + automatic pre-restore checkpoints; **not prevention** |

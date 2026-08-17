@@ -322,13 +322,17 @@ def test_missing_workspace_fails_closed(tmp_path: Path, portable_tree: Path) -> 
 
 
 @requires_windows_ps
-def test_existing_git_workspace_rejected(tmp_path: Path, portable_tree: Path) -> None:
+def test_launcher_defers_git_ownership_to_core(tmp_path: Path, portable_tree: Path) -> None:
+    """The launcher must NOT reject a workspace merely because .git exists:
+    ownership (managed vs foreign) is decided by the MCP core at startup.
+    A workspace with a pre-existing .git passes launcher validation."""
     _copy_launcher(portable_tree)
     ws = tmp_path / "hasgit"
     (ws / ".git").mkdir(parents=True)
-    r = _invoke_launcher(portable_tree, ws, [])
-    assert r.returncode != 0
-    assert ".git" in (r.stdout + r.stderr)
+    state = tmp_path / "state"
+    r = _invoke_launcher(portable_tree, ws, [], state_root=state)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "would start:" in r.stdout
 
 
 @requires_windows_ps
@@ -578,3 +582,217 @@ def test_launcher_real_download_and_checksum(tmp_path: Path) -> None:
     assert r2.returncode == 0, r2.stdout + r2.stderr
     assert "Reusing cached tunnel-client" in r2.stdout
     assert "Downloading" not in r2.stdout
+
+
+# ---------------------------------------------------------------------------
+# Real launcher -> MCP lifecycle (not a DryRun substitute): the launcher
+# generates the runtime config, and the MCP server is started for real,
+# twice, on the same workspace, exactly the way tunnel-client spawns it.
+# ---------------------------------------------------------------------------
+
+if sys.platform == "win32":
+    import asyncio
+
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())  # type: ignore[attr-defined]
+
+REQUIRED_TOOLS = {
+    "workspace_info", "list_directory", "read_file", "search_text",
+    "apply_changes", "git_status", "git_diff", "git_history", "git_restore",
+}
+
+MANAGED_SECTION = b"safe-workspace-mcp"
+MANAGED_KEY = b"managed-repository-format"
+
+
+def _marker_value(root: Path) -> bytes | None:
+    from dulwich.repo import Repo
+
+    with Repo(str(root)) as repo:
+        try:
+            return repo.get_config().get(MANAGED_SECTION, MANAGED_KEY)
+        except Exception:  # noqa: BLE001
+            return None
+
+
+def _read_ps_log(path: Path) -> str:
+    """Read a PowerShell `>` redirection log: PS 5.1 writes UTF-16LE by
+    default; sniff the BOM and fall back to UTF-8 with replacement."""
+    raw = path.read_bytes()
+    if raw.startswith(b"\xff\xfe") or raw.startswith(b"\xfe\xff"):
+        return raw.decode("utf-16", errors="replace")
+    if raw.startswith(b"\xef\xbb\xbf"):
+        return raw.decode("utf-8-sig", errors="replace")
+    return raw.decode("utf-8", errors="replace")
+
+
+@pytest.fixture()
+def anyio_backend() -> str:
+    return "asyncio"
+
+
+@requires_windows_ps
+@pytest.mark.anyio
+async def test_launcher_real_mcp_lifecycle_two_starts(
+    tmp_path: Path, portable_tree: Path
+) -> None:
+    """First real start creates .git + managed identity; second real start on
+    the same workspace succeeds. Uses the launcher-generated runtime config
+    and the real production server entry (packaged exe when built, source
+    entry otherwise), driven by the official MCP stdio client - the same
+    spawn shape tunnel-client uses for --mcp.command."""
+    import os as _os
+
+    from mcp import Client
+    from mcp.client.stdio import StdioServerParameters, stdio_client
+
+    _copy_launcher(portable_tree)
+    ws = tmp_path / "ws dir with spaces"
+    ws.mkdir()
+    (ws / "hello.txt").write_text("hi\n", encoding="utf-8")
+    state = tmp_path / "state"
+
+    # The launcher generates the real runtime config for this workspace.
+    r = _invoke_launcher(portable_tree, ws, [], state_root=state)
+    assert r.returncode == 0, r.stdout + r.stderr
+    cfg = _reported_config_path(r.stdout)
+    assert cfg.is_file()
+
+    packaged = _os.environ.get("SAFE_MCP_PACKAGED_EXE")
+    if packaged and Path(packaged).is_file():
+        command, args = str(packaged), [str(cfg)]
+        env = {**_os.environ}
+    else:
+        src_root = str(Path(__file__).resolve().parents[1] / "src")
+        env = {**_os.environ, "PYTHONPATH": src_root}
+        command, args = sys.executable, ["-m", "safe_workspace_mcp", str(cfg)]
+
+    params = StdioServerParameters(command=command, args=args, env=env)
+
+    # First real start.
+    async with Client(stdio_client(params)) as client:
+        tools = await client.list_tools()
+        assert {t.name for t in tools.tools} == REQUIRED_TOOLS
+    assert (ws / ".git").is_dir()
+    assert _marker_value(ws) == b"1"
+
+    # Second real start on the SAME workspace: managed repo reopened.
+    async with Client(stdio_client(params)) as client:
+        tools = await client.list_tools()
+        assert {t.name for t in tools.tools} == REQUIRED_TOOLS
+        result = await client.call_tool("git_history", {"limit": 5})
+        import json as _json
+
+        checkpoints = _json.loads(result.content[0].text)["checkpoints"]
+        assert any("initial" in c["message"] for c in checkpoints)
+    assert _marker_value(ws) == b"1"
+
+
+@pytest.mark.skipif(
+    os.environ.get("SAFE_MCP_E2E_DOWNLOAD") != "1",
+    reason="network + real tunnel-client test; set SAFE_MCP_E2E_DOWNLOAD=1 to include",
+)
+@requires_windows_ps
+def test_launcher_real_tunnel_lifecycle(tmp_path: Path, portable_tree: Path) -> None:
+    """Full real chain, twice: launcher (non-DryRun) -> pinned official
+    tunnel-client (downloaded+verified into an isolated state root) -> the
+    packaged MCP child spawned over stdio -> .git created on first run and
+    reopened on the second. Uses a fake runtime key: control-plane auth
+    fails, but the local child lifecycle (spawn, initialize, restart) is
+    fully real. Process trees are torn down after each start."""
+    import shutil as _shutil
+    import subprocess as _sp
+    import time as _time
+
+    packaged = os.environ.get("SAFE_MCP_PACKAGED_EXE")
+    if not packaged or not Path(packaged).is_file():
+        pytest.skip("needs a real packaged exe (set SAFE_MCP_PACKAGED_EXE)")
+    _copy_launcher(portable_tree)
+    # PyInstaller onedir: the exe needs its sibling _internal/ tree, so
+    # replace the placeholder directory with the full onedir build.
+    target_dir = portable_tree / "safe-workspace-mcp"
+    _shutil.rmtree(target_dir)
+    _shutil.copytree(Path(packaged).parent, target_dir)
+
+    ws = tmp_path / "tunnel ws"
+    ws.mkdir()
+    state = tmp_path / "state"
+    out_log = tmp_path / "run1.out"
+
+    script = (
+        f"$env:CONTROL_PLANE_API_KEY = 'sk-fake-lifecycle-key-not-real'; "
+        f"& {_ps_quote(str(portable_tree / 'Start-SafeWorkspaceMCP.ps1'))} "
+        f"-Workspace {_ps_quote(str(ws))} "
+        f"-TunnelId 'tunnel_{'0' * 31}a' -StateRoot {_ps_quote(str(state))} "
+        f"> {_ps_quote(str(out_log))} 2>&1"
+    )
+    ps = _sp.Popen(
+        ["powershell", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
+         "-Command", script],
+        stdout=_sp.PIPE, stderr=_sp.STDOUT, text=True,
+    )
+    try:
+        deadline = _time.monotonic() + 300
+        marker_seen = False
+        while _time.monotonic() < deadline:
+            if (ws / ".git").is_dir() and _marker_value(ws) == b"1":
+                marker_seen = True
+                break
+            if ps.poll() is not None:
+                raise AssertionError(
+                    f"launcher exited before creating managed repo; output:\n"
+                    f"{_read_ps_log(out_log)}"
+                )
+            _time.sleep(2)
+        assert marker_seen, (
+            f"managed repo not created; output:\n{_read_ps_log(out_log)}"
+        )
+        # The pinned tunnel-client was downloaded + verified into the cache.
+        cached_exe = state / "tools" / "tunnel-client" / "v0.0.11" / "tunnel-client.exe"
+        assert cached_exe.is_file() and cached_exe.stat().st_size > 10_000_000
+    finally:
+        _sp.run(["taskkill", "/PID", str(ps.pid), "/T", "/F"],
+                capture_output=True)  # noqa: S603,S607
+        ps.wait(timeout=60)
+
+    # Second real start on the SAME workspace: the managed repo must be
+    # reopened (not rejected as foreign). tunnel-client will still exit on
+    # the fake-key 401, so we verify the reopened repo state after the run
+    # completes: marker intact, repo openable, initial snapshot preserved.
+    out_log2 = tmp_path / "run2.out"
+    script2 = (
+        f"$env:CONTROL_PLANE_API_KEY = 'sk-fake-lifecycle-key-not-real'; "
+        f"& {_ps_quote(str(portable_tree / 'Start-SafeWorkspaceMCP.ps1'))} "
+        f"-Workspace {_ps_quote(str(ws))} "
+        f"-TunnelId 'tunnel_{'0' * 31}a' -StateRoot {_ps_quote(str(state))} "
+        f"> {_ps_quote(str(out_log2))} 2>&1"
+    )
+    ps2 = _sp.Popen(
+        ["powershell", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
+         "-Command", script2],
+        stdout=_sp.PIPE, stderr=_sp.STDOUT, text=True,
+    )
+    try:
+        # Give the second run enough time for the MCP child to spawn and
+        # reopen the managed repo. tunnel-client may keep retrying on the
+        # fake-key 401 and not exit on its own; we tear it down after the
+        # child has had ample time to either reopen or reject.
+        _time.sleep(30)
+        log2 = _read_ps_log(out_log2)
+        # The launcher must not have surfaced an ownership rejection.
+        assert "EXISTING_GIT_REPOSITORY" not in log2, (
+            f"second start rejected the managed repo:\n{log2}"
+        )
+        # Repo still valid, marker intact, initial snapshot still reachable.
+        assert _marker_value(ws) == b"1"
+        from dulwich.repo import Repo as _Repo
+
+        with _Repo(str(ws)) as repo:
+            msgs = [
+                entry.commit.message.decode("utf-8", "replace").strip()
+                for entry in repo.get_walker(max_entries=5)
+            ]
+        assert any("initial snapshot" in m for m in msgs), msgs
+    finally:
+        _sp.run(["taskkill", "/PID", str(ps2.pid), "/T", "/F"],
+                capture_output=True)  # noqa: S603,S607
+        ps2.wait(timeout=60)

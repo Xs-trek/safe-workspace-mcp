@@ -34,7 +34,7 @@ def env(tmp_path: Path):
     guard = PathGuard(root)
     files = FileService(cfg, guard)
     git = GitStore(cfg, guard)
-    git.open_or_init()
+    git.open_or_init_managed()
     tx = TransactionManager(cfg, files, git)
     return root, files, git, tx
 
@@ -134,7 +134,7 @@ def test_transaction_bytes_cap(tmp_path: Path) -> None:
     guard = PathGuard(root)
     files = FileService(cfg, guard)
     git = GitStore(cfg, guard)
-    git.open_or_init()
+    git.open_or_init_managed()
     tx = TransactionManager(cfg, files, git)
     with pytest.raises(TransactionError):
         tx.apply(

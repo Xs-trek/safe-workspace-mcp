@@ -163,7 +163,7 @@ def _drive_full_stack(root: Path) -> None:
     guard = PathGuard(root)
     files = FileService(cfg, guard)
     git = GitStore(cfg, guard)
-    git.open_or_init()
+    git.open_or_init_managed()
     search = SearchService(cfg, guard)
     tx = TransactionManager(cfg, files, git)
 
@@ -225,7 +225,7 @@ def test_hooks_never_execute(
     cfg = Config(root=root)
     guard = PathGuard(root)
     git = GitStore(cfg, guard)
-    git.open_or_init()
+    git.open_or_init_managed()
 
     hooks_dir = root / ".git" / "hooks"
     hooks_dir.mkdir(parents=True, exist_ok=True)

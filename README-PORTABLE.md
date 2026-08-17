@@ -132,21 +132,18 @@ For first use, an empty directory is recommended:
 New-Item -ItemType Directory -Force "D:\ChatGPT_Workspace\my-project"
 ```
 
-The workspace must not already contain its own `.git` repository.
+The workspace must not already contain a **foreign** `.git` repository (one not created by Safe Workspace MCP). On first start the server creates its own managed `.git` and writes a `safe-workspace-mcp.managed-repository-format` marker; on later starts it reopens that managed repo automatically. A plain `git init`, a clone, or any repo without the marker is rejected with `EXISTING_GIT_REPOSITORY_NOT_SUPPORTED`.
 
-Check:
+If you are unsure whether a directory already has `.git`:
 
 ```powershell
 Test-Path "D:\ChatGPT_Workspace\my-project\.git"
 ```
 
-Expected result:
+- `False` -> safe for first use; the server will create the managed repo.
+- `True` -> if Safe Workspace MCP already ran there before, it is the managed repo and will be reopened. If it is your own `git init`/clone, the server refuses it; use an empty directory instead.
 
-```text
-False
-```
-
-v0.1.0 does not adopt existing Git repositories.
+Safe Workspace MCP never adopts existing Git repositories, worktrees, submodules, or remotes.
 
 For important projects, use a disposable copy until you are comfortable with the workflow.
 
@@ -284,14 +281,15 @@ Do not pass the Runtime API Key as a normal command-line argument.
 On the normal supported path, the launcher:
 
 1. validates the workspace
-2. rejects unsupported existing `.git` repositories
-3. checks the local tunnel-client cache
-4. downloads the project-pinned official OpenAI `tunnel-client` if necessary
-5. verifies its pinned SHA-256 checksum
-6. stops immediately if checksum verification fails
-7. creates non-secret runtime configuration
-8. starts `tunnel-client`
-9. starts the packaged Safe Workspace MCP as the local stdio MCP process
+2. checks the local tunnel-client cache
+3. downloads the project-pinned official OpenAI `tunnel-client` if necessary
+4. verifies its pinned SHA-256 checksum
+5. stops immediately if checksum verification fails
+6. creates non-secret runtime configuration
+7. starts `tunnel-client`
+8. starts the packaged Safe Workspace MCP as the local stdio MCP process
+
+(The MCP core, not the launcher, decides at startup whether an existing `.git` is the server's own managed repo - reopened - or a foreign repo - rejected. The launcher does not pre-check `.git`.)
 
 Safe Workspace MCP v0.1.0 pins a tested stable `tunnel-client` version.
 
@@ -756,11 +754,11 @@ Tunnels: Use
 
 for the selected tunnel.
 
-## Workspace is rejected because .git exists
+## Workspace is rejected with EXISTING_GIT_REPOSITORY_NOT_SUPPORTED
 
-Safe Workspace MCP v0.1.0 intentionally does not adopt existing repositories.
+Safe Workspace MCP reopens its own managed `.git` (created on a previous run) automatically. It rejects a **foreign** repository - a plain `git init`, a clone, or a repo without the `safe-workspace-mcp.managed-repository-format` marker.
 
-Use:
+If the directory is one you previously used with Safe Workspace MCP, the rejection should not happen; if it does, the marker may have been removed or the repo tampered with. Otherwise use:
 
 - an empty workspace
 - or a copy of the source tree without its existing `.git`

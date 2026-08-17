@@ -18,7 +18,7 @@ def env(tmp_path: Path):
     cfg = Config(root=root)
     guard = PathGuard(root)
     git = GitStore(cfg, guard)
-    git.open_or_init()
+    git.open_or_init_managed()
     return root, git
 
 

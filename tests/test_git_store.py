@@ -20,7 +20,7 @@ def env(tmp_path: Path):
     cfg = Config(root=root)
     guard = PathGuard(root)
     git = GitStore(cfg, guard)
-    first = git.open_or_init()
+    first = git.open_or_init_managed()
     return root, git, first
 
 
@@ -41,7 +41,7 @@ def test_existing_git_rejected(tmp_path: Path) -> None:
     guard = PathGuard(root)
     git = GitStore(cfg, guard)
     with pytest.raises(errors.ExistingGitRepoError):
-        git.open_or_init()
+        git.open_or_init_managed()
 
 
 def test_checkpoint_tracks_user_edits(env) -> None:
