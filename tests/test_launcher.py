@@ -181,6 +181,7 @@ FORBIDDEN_PS_PATTERNS = [
     "schtasks",
     "Register-ScheduledTask",
     "OPENAI_ADMIN_KEY",
+    "ZeroFreeBSTRGlobal",
 ]
 
 
@@ -515,6 +516,27 @@ def test_tunnel_client_path_missing_fails(tmp_path: Path) -> None:
     r = _run_ps(script)
     assert r.returncode != 0
     assert "not found" in (r.stdout + r.stderr)
+
+
+@requires_windows_ps
+def test_read_secret_from_secure_string_roundtrip(tmp_path: Path) -> None:
+    """Regression (Windows PowerShell 5.1): SecureString -> plaintext must
+    work and free the BSTR without throwing. The old ZeroFreeBSTRGlobal typo
+    raised a MethodException as soon as the key prompt path was reached."""
+    funcs = _dot_source_functions(tmp_path)
+    secret = "sk-test-Ünïcode-'quote'-123!"  # noqa: S105 - synthetic test value
+    script = (
+        f". {_ps_quote(str(funcs))}; "
+        "$ss = ConvertTo-SecureString -AsPlainText -Force " + _ps_quote(secret) + "; "
+        "$plain = Read-SecretFromSecureString -Secure $ss; "
+        "$ss.Dispose(); "
+        "if ($plain -ceq " + _ps_quote(secret) + ") { Write-Output 'ROUNDTRIP-OK' } "
+        "else { Write-Output ('MISMATCH: ' + $plain) }"
+    )
+    r = _run_ps(script)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "ROUNDTRIP-OK" in r.stdout
+    assert "MISMATCH" not in r.stdout
 
 
 @pytest.mark.skipif(
