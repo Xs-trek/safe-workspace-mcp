@@ -1,4 +1,4 @@
-# Threat Model — safe-workspace-mcp v0.1.0
+# Threat Model — safe-workspace-mcp v0.1.1
 
 ## Assets
 
@@ -83,21 +83,21 @@ Each absence is enforced by AST-based static tests over the production package (
 | Credential theft via launcher | Runtime API Key only in memory/child env via SecureString prompt or `CONTROL_PLANE_API_KEY`; never in argv/config/logs; env cleared on exit |
 | Tunnel transport abusing the MCP child slot | the MCP command is built solely from the launcher's own packaged exe + generated config path; the model/workspace cannot alter `--mcp.command` |
 
-## Residual risks (accepted for v0.1.0)
+## Residual risks (accepted for v0.1.1)
 
 1. **TOCTOU** between validation and use (inherent to path APIs; narrowed by atomic replace + re-validation).
 2. **Same-user trust**: the process could technically touch anything the user can; confinement is this program's logic, not an OS boundary. Corollary: a compromised dependency could abuse that authority — mitigated by pinning + tiny dependency set, not eliminated.
 3. **Excluded dirs are invisible AND unprotected** — the server neither reads nor restores them; treat them as outside the safety envelope.
 4. **Prompt injection succeeds at its actual goal** (getting the model to edit files); we only bound what "edit files" can mean and make it reversible.
-5. **History growth** unbounded (no gc in v0.1.0; disk exhaustion is a availability risk inside the workspace).
+5. **History growth** unbounded (no gc in v0.1.1; disk exhaustion is a availability risk inside the workspace).
 
-## Why no Docker/VM/WSL sandbox in v0.1.0
+## Why no Docker/VM/WSL sandbox in v0.1.1
 
 > Because the MCP server exposes no shell, subprocess, code execution, package execution, or arbitrary local-network capability. Its model-facing authority is intentionally limited to structured filesystem operations inside one validated workspace.
 
 An OS-level sandbox guards against a process with broad authority. This process is built to have almost no authority worth sandboxing: there is no command the model can ask for that reaches an exec API (they are stubbed out), no network primitive it can route through, and no path that leaves the workspace. The remaining risk — "the program's own logic is wrong" — is what the path tests, AST tests, and rollback machinery address, and what a sandbox would *not* fix.
 
-**If a future version adds command execution, build, or test-running capabilities, this rationale collapses.** Such features require a redesigned threat model and an OS/container sandbox (or equivalent privilege reduction) as a hard prerequisite, plus explicit user opt-in. That decision is deliberately out of scope for v0.1.0.
+**If a future version adds command execution, build, or test-running capabilities, this rationale collapses.** Such features require a redesigned threat model and an OS/container sandbox (or equivalent privilege reduction) as a hard prerequisite, plus explicit user opt-in. That decision is deliberately out of scope for v0.1.1.
 
 ## Out-of-scope threats
 
