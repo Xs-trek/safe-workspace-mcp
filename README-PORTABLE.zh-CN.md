@@ -67,7 +67,7 @@ MCP 恰好暴露以下工具：
 普通 Windows 用户只需要从本项目的 **GitHub Releases** 页面下载：
 
 ```text
-safe-workspace-mcp-0.1.0-windows-x64.zip
+safe-workspace-mcp-0.1.1-windows-x64.zip
 ```
 
 建议同时下载：
@@ -85,7 +85,7 @@ SHA256SUMS.txt
 解压前可以验证 ZIP 的 SHA-256：
 
 ```powershell
-Get-FileHash ".\safe-workspace-mcp-0.1.0-windows-x64.zip" -Algorithm SHA256
+Get-FileHash ".\safe-workspace-mcp-0.1.1-windows-x64.zip" -Algorithm SHA256
 ```
 
 将结果与同一 GitHub Release 中：
@@ -127,7 +127,7 @@ THIRD_PARTY_NOTICES.md
 
 # 5. 准备 workspace
 
-Safe Workspace MCP v0.1.0 每个运行中的 MCP 实例只管理一个固定 workspace。
+Safe Workspace MCP v0.1.1 每个运行中的 MCP 实例只管理一个固定 workspace。
 
 首次使用建议创建一个空目录：
 
@@ -307,7 +307,7 @@ Runtime API Key 输入是隐藏的。
 
 （`.git` 是 managed 还是外部仓库，由 MCP 核心在启动时判断，而非 launcher 预检查；launcher 不检查 `.git`。）
 
-Safe Workspace MCP v0.1.0 固定使用经过项目实际验证的稳定 tunnel-client 版本。
+Safe Workspace MCP v0.1.1 固定使用经过项目实际验证的稳定 tunnel-client 版本。
 
 Launcher 启动时会显示当前 pin。
 
@@ -425,7 +425,7 @@ Safe Workspace MCP 本身不需要 OAuth。
 
 # 12. 检查工具发现
 
-Safe Workspace MCP v0.1.0 应恰好暴露 9 个工具：
+Safe Workspace MCP v0.1.1 应恰好暴露 9 个工具：
 
 ```text
 workspace_info
@@ -784,12 +784,12 @@ SHA-256
 
 ---
 
-# 23. v0.1.0 的设计限制
+# 23. v0.1.1 的设计限制
 
-v0.1.0 有意限制为：
+v0.1.1 有意限制为：
 
 - 一个进程 = 一个固定 workspace
-- 不支持接管已有 `.git` 仓库
+- 不接管外部已有 `.git` 仓库；Safe Workspace MCP 自己创建的 managed `.git` 可在后续启动时重新打开
 - `.git` 不可通过 MCP 文件工具访问
 - 无 Shell
 - 无终端
@@ -799,7 +799,7 @@ v0.1.0 有意限制为：
 - 无 clone / fetch / pull / push
 - 无运行时动态切换 workspace
 
-这些限制属于 v0.1.0 的安全设计，不是缺失的安装步骤。
+这些限制属于 v0.1.1 的安全设计，不是缺失的安装步骤。
 
 ---
 
