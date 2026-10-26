@@ -33,6 +33,33 @@ def test_initial_snapshot(env) -> None:
     assert st == {"added": [], "modified": [], "removed": []}
 
 
+def test_sync_preserves_gitignored_untracked_files(env) -> None:
+    """Regression: working-tree sync once deleted every walkable file not
+    present in the target tree, wiping .gitignore-excluded files on every
+    rollback/restore."""
+    root, git, _ = env
+    (root / ".gitignore").write_text("ignored/\nsecret.env\n", encoding="utf-8")
+    (root / "ignored").mkdir()
+    (root / "ignored" / "keep.bin").write_bytes(b"payload")
+    (root / "secret.env").write_bytes(b"KEY=1\n")
+    base = git.checkpoint("baseline with ignore")
+    (root / "f.txt").write_bytes(b"v2\n")
+    git.sync_working_tree_to(base)
+    assert (root / "f.txt").read_bytes() == b"v1\n"
+    assert (root / "ignored" / "keep.bin").read_bytes() == b"payload"
+    assert (root / "secret.env").read_bytes() == b"KEY=1\n"
+
+
+def test_sync_removes_files_tracked_since_target(env) -> None:
+    root, git, first = env
+    (root / "sub").mkdir()
+    (root / "sub" / "new.txt").write_bytes(b"new\n")
+    git.checkpoint("added sub/new.txt")
+    git.sync_working_tree_to(first)
+    assert not (root / "sub" / "new.txt").exists()
+    assert not (root / "sub").exists()  # emptied directory is pruned
+
+
 def test_existing_git_rejected(tmp_path: Path) -> None:
     root = tmp_path / "ws"
     root.mkdir()

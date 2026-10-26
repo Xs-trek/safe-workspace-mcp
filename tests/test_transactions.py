@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from safe_workspace_mcp import errors
 from safe_workspace_mcp.config import Config
 from safe_workspace_mcp.errors import HashMismatchError, TransactionError
 from safe_workspace_mcp.file_service import FileService
@@ -123,6 +124,57 @@ def test_execution_failure_rolls_back(env) -> None:
     # A.txt must be rolled back (deleted), B.txt unchanged
     assert not (root / "A.txt").exists()
     assert (root / "B.txt").read_text(encoding="utf-8") == "bbb\nbbb\n"
+
+
+def _failing_tx(root: Path) -> ApplyChanges:
+    """Creates new.txt, then fails on a replace_text whose old_text is absent."""
+    return ApplyChanges(
+        operations=[
+            CreateFileOp(path="new.txt", content="n\n"),
+            ReplaceTextOp(
+                path="B.txt",
+                expected_sha256=_hash(root, "B.txt"),
+                old_text="zzz-not-present",
+                new_text="x",
+            ),
+        ]
+    )
+
+
+def test_rollback_never_deletes_gitignored_files(env) -> None:
+    """Regression: the rollback working-tree sync deleted every walkable
+    file absent from the PRE commit, erasing gitignored files."""
+    root, _, git, tx = env
+    (root / ".gitignore").write_text("ignored/\n.env\n", encoding="utf-8")
+    (root / "ignored").mkdir()
+    (root / "ignored" / "keep.bin").write_bytes(b"payload")
+    (root / ".env").write_bytes(b"TOKEN=local\n")
+    git.checkpoint("baseline with ignore")
+    with pytest.raises(errors.SafeWorkspaceError):
+        tx.apply(_failing_tx(root))
+    assert not (root / "new.txt").exists()
+    assert (root / "B.txt").read_text(encoding="utf-8") == "bbb\n"
+    assert (root / "ignored" / "keep.bin").read_bytes() == b"payload"
+    assert (root / ".env").read_bytes() == b"TOKEN=local\n"
+
+
+def test_rollback_survives_locked_gitignored_file(env) -> None:
+    """A gitignored file held open by another process (e.g. a JDK
+    lib/modules mapped by a Gradle daemon) must not turn a normal rollback
+    into ROLLBACK_FAILED: the sync never touches untracked files."""
+    root, _, git, tx = env
+    (root / ".gitignore").write_text(".tools/\n", encoding="utf-8")
+    modules = root / ".tools" / "jdk-17" / "lib" / "modules"
+    modules.parent.mkdir(parents=True)
+    modules.write_bytes(b"\0" * 1024)
+    git.checkpoint("baseline with .tools")
+    with modules.open("rb") as lock:
+        with pytest.raises(errors.SafeWorkspaceError) as excinfo:
+            tx.apply(_failing_tx(root))
+        assert "ROLLBACK" not in str(excinfo.value).upper()
+        assert lock.read(4) == b"\0\0\0\0"
+    assert not (root / "new.txt").exists()
+    assert (root / "B.txt").read_text(encoding="utf-8") == "bbb\n"
 
 
 def test_transaction_bytes_cap(tmp_path: Path) -> None:

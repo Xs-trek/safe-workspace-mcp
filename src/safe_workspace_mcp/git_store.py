@@ -411,10 +411,13 @@ class GitStore:
     def sync_working_tree_to_commit(self, commit_id: ObjectID) -> None:
         """Make managed working files EXACTLY match a commit's tree.
 
-        Does not move refs and makes no new commit: deletes managed files
-        not present in the target tree, restores modified and deleted ones
-        byte-for-byte, prunes directories left empty. Line endings are
-        never translated (blob bytes are written verbatim).
+        Does not move refs and makes no new commit: deletes files that the
+        repository tracked (present in the current index) but that are
+        absent from the target tree, restores modified and deleted ones
+        byte-for-byte, prunes directories left empty, and never touches
+        untracked working files (`git reset --hard` semantics - anything the
+        workspace .gitignore excludes stays exactly as it is). Line endings
+        are never translated (blob bytes are written verbatim).
         """
         from typing import cast
 
@@ -429,11 +432,20 @@ class GitStore:
             target_paths: dict[str, ObjectID] = {}
             self._flatten_tree(tree, b"", target_paths)
             root = self._guard.root
-            # Delete working FILES not present in target (dirs handled after)
-            for p in self._iter_managed_paths():
-                rel = p.relative_to(root).as_posix()
-                if rel not in target_paths:
-                    p.unlink(missing_ok=True)
+            # Delete only files that are tracked (in the current index) and
+            # absent from the target tree. Untracked working files are NEVER
+            # deleted: staging honors the workspace .gitignore (dulwich's
+            # IgnoreFilterManager), so ignored files are not in the index
+            # either. An earlier version deleted "every walkable file not in
+            # the target tree", which wiped ignored files (.env, local
+            # toolchains, generated assets) on every rollback/restore.
+            index = repo.open_index()
+            tracked = {p.decode("utf-8", "replace") for p in index}
+            deleted: list[Path] = []
+            for rel in sorted(tracked - set(target_paths)):
+                victim = root / rel
+                victim.unlink(missing_ok=True)
+                deleted.append(victim)
             # Restore target file contents
             for rel, sha in target_paths.items():
                 dest = root / rel
@@ -443,8 +455,15 @@ class GitStore:
                 tmp = dest.with_name(dest.name + ".mcp-restore")
                 tmp.write_bytes(data)
                 os.replace(tmp, dest)
-            # Prune empty directories
-            for p in sorted(self._iter_dirs(root), key=lambda x: -len(x.parts)):
+            # Prune directories emptied by the deletions above (deepest
+            # first; directories that still hold untracked files survive).
+            emptied = {
+                parent
+                for victim in deleted
+                for parent in victim.parents
+                if parent != root and parent.is_relative_to(root)
+            }
+            for p in sorted(emptied, key=lambda x: -len(x.parts)):
                 try:
                     next(p.iterdir())
                 except StopIteration:
@@ -476,23 +495,6 @@ class GitStore:
                 self._flatten_tree(obj, full.encode(), out)
             else:
                 out[full] = item.sha
-
-    def _iter_dirs(self, start: Path) -> list[Path]:
-        out: list[Path] = []
-        stack = [start]
-        while stack:
-            cur = stack.pop()
-            with os.scandir(cur) as it:
-                for entry in it:
-                    if self._guard.is_internal_or_excluded_dir(entry.name):
-                        continue
-                    try:
-                        if entry.is_dir(follow_symlinks=False) and not entry.is_symlink():
-                            out.append(Path(entry.path))
-                            stack.append(Path(entry.path))
-                    except OSError:
-                        continue
-        return out
 
     def _current_branch_ref(self) -> Ref | None:
         from dulwich.refs import Ref as _Ref
