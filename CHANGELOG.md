@@ -14,6 +14,7 @@ The format follows Keep a Changelog; versioning is SemVer.
 - Checkpoints are always committed as `Safe Workspace MCP <safe-workspace-mcp@local>`; `[git] author_name` / `author_email` set the author only, so automated snapshots stay distinguishable from human commits.
 - Commit messages are capped by bytes without splitting a multi-byte UTF-8 character.
 - `git.auto_checkpoint = false` is rejected at startup instead of being silently ignored.
+- The launcher keeps the `[git]` section (author identity) when it regenerates the runtime config on each start; defaults can be placed in `runtime\git-identity.toml` next to the generated configs.
 
 ## [0.1.1] - 2026-08-18
 
