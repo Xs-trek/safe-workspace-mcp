@@ -141,6 +141,40 @@ def _failing_tx(root: Path) -> ApplyChanges:
     )
 
 
+def test_transaction_adds_one_commit_with_message(env) -> None:
+    root, _, git, tx = env
+    before = [c.id for c in git.history(50)]
+    _, pre, post = tx.apply(
+        ApplyChanges(
+            operations=[CreateFileOp(path="new.txt", content="n\n")],
+            message="add new.txt for the parser",
+        )
+    )
+    hist = git.history(50)
+    assert pre == before[0]  # unchanged state: no empty pre-change commit
+    assert [c.id for c in hist] == [post, *before]
+    assert hist[0].message == "add new.txt for the parser"
+
+
+def test_pre_checkpoint_records_outside_edits(env) -> None:
+    root, _, git, tx = env
+    head = git.history(1)[0].id
+    (root / "C.txt").write_text("edited outside MCP\n", encoding="utf-8")
+    _, pre, post = tx.apply(ApplyChanges(operations=[CreateFileOp(path="n.txt", content="n\n")]))
+    assert pre != head
+    hist = git.history(3)
+    assert [c.id for c in hist] == [post, pre, head]
+    assert hist[0].message == "post-change checkpoint"
+
+
+@pytest.mark.parametrize("bad", ["", "   ", "two\nlines", "x" * 201])
+def test_invalid_message_rejected(bad: str) -> None:
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError):
+        ApplyChanges(operations=[CreateFileOp(path="n.txt", content="n\n")], message=bad)
+
+
 def test_rollback_never_deletes_gitignored_files(env) -> None:
     """Regression: the rollback working-tree sync deleted every walkable
     file absent from the PRE commit, erasing gitignored files."""

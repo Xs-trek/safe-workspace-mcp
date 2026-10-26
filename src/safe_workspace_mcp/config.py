@@ -151,6 +151,10 @@ def load_config(path: os.PathLike[str] | str) -> Config:
         raise errors.ConfigError("git remotes are not supported in v0.1.0")
     if not git.enabled:
         raise errors.ConfigError("git.enabled = false is not supported in v0.1.0")
+    if not git.auto_checkpoint:
+        # Rollback depends on the pre-change checkpoint, so it cannot be
+        # switched off; reject instead of silently ignoring the setting.
+        raise errors.ConfigError("git.auto_checkpoint = false is not supported")
 
     search_raw = data.get("search", {})
     search = SearchPolicy(

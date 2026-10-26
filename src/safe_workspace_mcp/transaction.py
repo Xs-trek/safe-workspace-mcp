@@ -2,10 +2,10 @@
 
 Ordering (per project spec):
   1. validate ALL operations (paths, hashes, policy, plan-level conflicts)
-  2. PRE checkpoint of current state
+  2. PRE checkpoint of current state (reuses HEAD when nothing changed)
   3. execute in order
   4. verify results
-  5. POST checkpoint
+  5. POST checkpoint (message = the caller's summary, if given)
 On any execution failure: roll back to PRE state (managed files).
 """
 
@@ -95,7 +95,7 @@ class TransactionManager:
             if isinstance(exc, errors.SafeWorkspaceError):
                 raise
             raise errors.TransactionError(f"transaction failed: {exc}") from exc
-        post = self._git.checkpoint("post-change checkpoint")
+        post = self._git.checkpoint(request.message or "post-change checkpoint")
         return applied, pre, post
 
     def _record_journal(

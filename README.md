@@ -28,7 +28,7 @@ The launcher downloads the official OpenAI tunnel client (pinned `v0.0.11`, SHA-
 - One process = one configuration = **one fixed workspace** (chosen at startup, immutable at runtime)
 - Structured text-file CRUD with atomic multi-file transactions
 - Optimistic concurrency: every modification of an existing file requires its current `sha256`
-- Managed local Git history (via [Dulwich](https://www.dulwich.io), never `git.exe`): pre/post-change checkpoints, diff, history, restore
+- Managed local Git history (via [Dulwich](https://www.dulwich.io), never `git.exe`): pre/post-change checkpoints (unchanged states reuse the existing checkpoint, so no empty commits; an optional `message` on `apply_changes` becomes the commit message; checkpoints are always committed as `Safe Workspace MCP`), diff, history, restore
 - stdio MCP server, 9 tools total
 
 ## Non-goals (hard absent)

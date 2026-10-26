@@ -473,16 +473,17 @@ Safe Workspace MCP test
 Then show the diff against the pre-change checkpoint and list the recent checkpoints.
 ```
 
-A successful write transaction normally creates:
+A successful write transaction normally creates one checkpoint:
 
 ```text
-pre-change checkpoint
-post-change checkpoint
+post-change checkpoint   (or the one-line message passed to apply_changes)
 ```
+
+If files were edited outside MCP since the last checkpoint, a separate `pre-change checkpoint` records those edits first. When nothing changed, the existing checkpoint is reused as the pre-change checkpoint, so no empty commits are created. Checkpoints are always committed as `Safe Workspace MCP`, even when `[git] author_name/author_email` are set.
 
 Because successful changes are checkpointed, the working tree may already be clean after the post-change checkpoint.
 
-To inspect what changed, compare against the pre-change checkpoint.
+To inspect what changed, compare against the `pre_checkpoint` id returned by `apply_changes`.
 
 ## Restore test
 
@@ -490,7 +491,7 @@ To inspect what changed, compare against the pre-change checkpoint.
 List the recent checkpoints and restore the workspace to the checkpoint immediately before hello.txt was created.
 ```
 
-Before performing a restore, Safe Workspace MCP creates an additional protection checkpoint.
+Before performing a restore, Safe Workspace MCP makes sure the current state is checkpointed (reusing the latest checkpoint when nothing changed).
 
 After restoring to the pre-change checkpoint:
 

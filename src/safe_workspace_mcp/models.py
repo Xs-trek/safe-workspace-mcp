@@ -21,6 +21,19 @@ RelPath = Annotated[
     ),
 ]
 
+CheckpointMessage = Annotated[
+    str,
+    Field(
+        description=(
+            "One-line summary of why this change is made; becomes the "
+            "checkpoint commit message (default: 'post-change checkpoint')."
+        ),
+        min_length=1,
+        max_length=200,
+        pattern=r"^[^\x00-\x1f\x7f]*\S[^\x00-\x1f\x7f]*$",
+    ),
+]
+
 
 class FileContent(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -106,6 +119,7 @@ class ApplyChanges(BaseModel):
     operations: list[Annotated[Operation, Field(discriminator="op")]] = Field(
         min_length=1, max_length=200, description="Operations applied atomically."
     )
+    message: CheckpointMessage | None = None
 
 
 class ReadFileArgs(BaseModel):

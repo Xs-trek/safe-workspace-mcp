@@ -42,6 +42,12 @@ _MANAGED_SECTION = b"safe-workspace-mcp"
 _MANAGED_KEY = b"managed-repository-format"
 _SUPPORTED_FORMATS = frozenset({b"1"})
 
+# Checkpoints are always COMMITTED by the server itself, whatever author
+# identity the operator configures, so automated snapshots stay
+# distinguishable from human commits (`git log --format=%cn`).
+_COMMITTER = b"Safe Workspace MCP <safe-workspace-mcp@local>"
+_MAX_MESSAGE_BYTES = 1024
+
 
 def _try_remove_git_dir(git_dir: Path) -> None:
     """Best-effort removal of a .git created by the current init call.
@@ -56,6 +62,13 @@ def _try_remove_git_dir(git_dir: Path) -> None:
         shutil.rmtree(git_dir, ignore_errors=True)
     except Exception:  # noqa: BLE001, S110 - cleanup must never mask the real error
         pass
+
+
+def _encode_message(message: str) -> bytes:
+    """UTF-8 commit message capped at a byte budget without splitting a
+    multi-byte character."""
+    data = message.encode("utf-8")[:_MAX_MESSAGE_BYTES]
+    return data.decode("utf-8", "ignore").encode("utf-8")
 
 
 def _hook_noop(self: object, *args: object, **kwargs: object) -> None:
@@ -248,20 +261,36 @@ class GitStore:
     def checkpoint(self, message: str) -> str:
         """Snapshot current managed state. Returns checkpoint id.
 
+        When the managed state is identical to HEAD no commit is made and
+        HEAD's id is returned: an unchanged snapshot is already recorded,
+        and empty commits only bury the real history.
+
         no_verify=True is SECURITY-CRITICAL: it stops dulwich from
         attempting to execute .git hooks via subprocess.call (dulwich tries
         this even when no hook file exists). The managed repo never has
         hooks; skipping them is both correct and keeps the no-subprocess
         invariant.
         """
+        from typing import cast
+
+        from dulwich.objects import Commit as DulwichCommit
+
         repo = self.repo
         try:
             self._stage_managed()
+            try:
+                head = repo.head()
+            except KeyError:  # unborn branch: the initial snapshot
+                head = None
+            if head is not None:
+                tree = repo.open_index().commit(repo.object_store)
+                if cast(DulwichCommit, repo.object_store[head]).tree == tree:
+                    return head.decode()
             cid = porcelain.commit(
                 repo.path,
-                message=message.encode("utf-8")[:200],
+                message=_encode_message(message),
                 author=self._author.encode("utf-8"),
-                committer=self._author.encode("utf-8"),
+                committer=_COMMITTER,
                 no_verify=True,
             )
         except errors.SafeWorkspaceError:

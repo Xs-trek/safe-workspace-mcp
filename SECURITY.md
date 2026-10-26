@@ -49,7 +49,7 @@ All writes go through: temp file in the same directory → write → flush → f
 
 ## Transactions
 
-`apply_changes` validates the entire plan first (paths, hashes, policy, duplicate-path conflicts, byte budget), takes a **pre-change checkpoint**, executes in order, verifies, then takes a **post-change checkpoint**. Any failure triggers rollback: executed operations are undone precisely (in reverse order), and managed files are synced byte-for-byte to the pre-change checkpoint. `ROLLBACK_FAILED` (git store unavailable) is reported with the pre-change checkpoint id for manual recovery.
+`apply_changes` validates the entire plan first (paths, hashes, policy, duplicate-path conflicts, byte budget), takes a **pre-change checkpoint** (when the workspace is unchanged since the last checkpoint, that checkpoint is reused instead of committing an empty one), executes in order, verifies, then takes a **post-change checkpoint**. Any failure triggers rollback: executed operations are undone precisely (in reverse order), and managed files are synced byte-for-byte to the pre-change checkpoint. `ROLLBACK_FAILED` (git store unavailable) is reported with the pre-change checkpoint id for manual recovery.
 
 ## Git isolation
 

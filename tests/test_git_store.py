@@ -60,6 +60,55 @@ def test_sync_removes_files_tracked_since_target(env) -> None:
     assert not (root / "sub").exists()  # emptied directory is pruned
 
 
+def test_unchanged_checkpoint_reuses_head(env) -> None:
+    root, git, first = env
+    assert git.checkpoint("nothing changed") == first
+    assert [c.id for c in git.history(10)] == [first]
+    (root / "f.txt").write_bytes(b"v2\n")
+    second = git.checkpoint("changed")
+    assert second != first
+    assert git.checkpoint("still nothing") == second
+    assert len(git.history(10)) == 2
+
+
+def test_committer_is_server_even_with_custom_author(tmp_path: Path) -> None:
+    from safe_workspace_mcp.config import GitPolicy
+
+    root = tmp_path / "ws"
+    root.mkdir()
+    (root / "f.txt").write_bytes(b"v1\n")
+    cfg = Config(root=root, git=GitPolicy(author_name="Ada", author_email="ada@example.com"))
+    git = GitStore(cfg, PathGuard(root))
+    first = git.open_or_init_managed()
+    commit = git.repo[first.encode()]
+    assert commit.author == b"Ada <ada@example.com>"
+    assert commit.committer == b"Safe Workspace MCP <safe-workspace-mcp@local>"
+    git.close()
+
+
+def test_long_multibyte_message_is_not_split(env) -> None:
+    root, git, _ = env
+    (root / "f.txt").write_bytes(b"v2\n")
+    cid = git.checkpoint("修改" * 400)
+    message = git.repo[cid.encode()].message
+    assert len(message) <= 1024
+    message.decode("utf-8")  # strict: no half character at the cut
+
+
+def test_auto_checkpoint_false_is_rejected(tmp_path: Path) -> None:
+    from safe_workspace_mcp.config import load_config
+
+    root = tmp_path / "ws"
+    root.mkdir()
+    cfg = tmp_path / "c.toml"
+    cfg.write_text(
+        f'[workspace]\nroot = "{root.as_posix()}"\n\n[git]\nauto_checkpoint = false\n',
+        encoding="utf-8",
+    )
+    with pytest.raises(errors.ConfigError):
+        load_config(cfg)
+
+
 def test_existing_git_rejected(tmp_path: Path) -> None:
     root = tmp_path / "ws"
     root.mkdir()

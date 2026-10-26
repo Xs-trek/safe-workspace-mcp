@@ -26,6 +26,7 @@ from .models import (
     ApplyChanges,
     ApplyResult,
     Checkpoint,
+    CheckpointMessage,
     EntryInfo,
     GitDiffResult,
     GitHistoryResult,
@@ -139,14 +140,16 @@ def build_server(config: Config) -> MCPServer:
             Field(min_length=1, max_length=200,
                   description="Operations applied atomically in order"),
         ],
+        message: CheckpointMessage | None = None,
     ) -> ApplyResult:
         """Apply file operations atomically (create/replace/move/delete).
 
         All operations are validated first; if anything fails nothing is
-        applied. Existing-file changes require expected_sha256.
+        applied. Existing-file changes require expected_sha256. Pass a
+        one-line `message` saying why; it becomes the checkpoint message.
         """
         try:
-            request = ApplyChanges(operations=operations)
+            request = ApplyChanges(operations=operations, message=message)
             applied, pre, post = tx.apply(request)
             return ApplyResult(
                 applied=applied,

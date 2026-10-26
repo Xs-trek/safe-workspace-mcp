@@ -517,16 +517,17 @@ Safe Workspace MCP test
 然后显示相对修改前 checkpoint 的 git diff 和最近的 checkpoint。
 ```
 
-一次正常的成功修改会形成：
+一次正常的成功修改通常只形成一个 checkpoint：
 
 ```text
-pre-change checkpoint
-post-change checkpoint
+post-change checkpoint   （或 apply_changes 传入的一行 message）
 ```
+
+如果上一个 checkpoint 之后有在 MCP 之外修改的文件，会先单独生成一个 `pre-change checkpoint` 记录这些修改；如果没有变化，则直接复用已有的 checkpoint 作为 PRE，不再产生空提交。无论 `[git] author_name/author_email` 如何设置，checkpoint 的提交者（committer）始终是 `Safe Workspace MCP`。
 
 因为成功修改后已经生成 POST checkpoint，所以当前 HEAD 相对 working tree 的 diff 可以为空。
 
-如果要查看本次具体变化，应与 PRE checkpoint 比较。
+如果要查看本次具体变化，应与 `apply_changes` 返回的 `pre_checkpoint` 比较。
 
 ## Restore 测试
 
@@ -534,7 +535,7 @@ post-change checkpoint
 列出最近 checkpoint，并恢复到创建 hello.txt 之前的状态。
 ```
 
-执行 restore 前，Safe Workspace MCP 会先自动创建一个保护 checkpoint。
+执行 restore 前，Safe Workspace MCP 会先确保当前状态已有 checkpoint（没有变化时直接复用最新的 checkpoint）。
 
 恢复成功后：
 

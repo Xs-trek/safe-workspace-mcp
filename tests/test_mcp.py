@@ -112,10 +112,12 @@ async def test_full_workflow(tmp_path: Path) -> None:
                         "old_text": "return 0;",
                         "new_text": "return 1;",
                     }
-                ]
+                ],
+                "message": "return 1 from main",
             },
         )
         assert not r.is_error, r.content[0].text
+        applied = json.loads(r.content[0].text)
 
         r = await client.call_tool("search_text", {"query": "return"})
         hits = json.loads(r.content[0].text)["hits"]
@@ -127,8 +129,9 @@ async def test_full_workflow(tmp_path: Path) -> None:
         # pre-change checkpoint shows the edit.
         r = await client.call_tool("git_history", {"limit": 10})
         hist = json.loads(r.content[0].text)["checkpoints"]
-        pre_change = next(c["id"] for c in hist if c["message"] == "pre-change checkpoint")
-        r = await client.call_tool("git_diff", {"checkpoint": pre_change})
+        assert hist[0]["id"] == applied["checkpoint"]
+        assert hist[0]["message"] == "return 1 from main"
+        r = await client.call_tool("git_diff", {"checkpoint": applied["pre_checkpoint"]})
         assert not r.is_error, r.content[0].text
         assert "return 1" in json.loads(r.content[0].text)["diff"]
 
@@ -167,10 +170,11 @@ async def test_git_restore_via_mcp(tmp_path: Path) -> None:
 
     server = build_server(Config(root=_mk_ws(tmp_path)))
     async with Client(server) as client:
-        await client.call_tool(
+        r = await client.call_tool(
             "apply_changes",
             {"operations": [{"op": "create_file", "path": "f.txt", "content": "v1\n"}]},
         )
+        v1 = json.loads(r.content[0].text)["checkpoint"]
         r = await client.call_tool("read_file", {"path": "f.txt"})
         rf = json.loads(r.content[0].text)
         await client.call_tool(
@@ -186,16 +190,12 @@ async def test_git_restore_via_mcp(tmp_path: Path) -> None:
                 ]
             },
         )
-        r = await client.call_tool("git_history", {"limit": 10})
-        hist = json.loads(r.content[0].text)["checkpoints"]
-        v1 = hist[2]["id"]  # post-change of first apply
         r = await client.call_tool("git_restore", {"checkpoint": v1})
         assert not r.is_error, r.content[0].text
+        pre_restore = json.loads(r.content[0].text)["pre_restore_checkpoint"]
         r = await client.call_tool("read_file", {"path": "f.txt"})
         assert json.loads(r.content[0].text)["content"] == "v1\n"
         # undo
-        r = await client.call_tool("git_history", {"limit": 2})
-        pre_restore = json.loads(r.content[0].text)["checkpoints"][1]["id"]
         r = await client.call_tool("git_restore", {"checkpoint": pre_restore})
         assert not r.is_error, r.content[0].text
         r = await client.call_tool("read_file", {"path": "f.txt"})
