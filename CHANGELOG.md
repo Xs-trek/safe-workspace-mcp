@@ -3,6 +3,18 @@
 All notable changes to this project are documented here.
 The format follows Keep a Changelog; versioning is SemVer.
 
+## [0.1.2] - 2026-10-26
+
+### Fixed
+- **Restore/rollback deleted gitignored files**: the working-tree sync deleted every walkable file absent from the target checkpoint. Ignored files are never part of a checkpoint, so every failed `apply_changes` (rollback) and every `git_restore` erased them (`.env`, local toolchains, signing keys, generated output). Only files tracked in the current index and absent from the target are deleted now (`git reset --hard` semantics), and only directories emptied by those deletions are pruned.
+
+### Changed (checkpoint history noise)
+- A checkpoint of an unchanged workspace reuses the latest checkpoint instead of committing an empty one. A normal `apply_changes` now adds one commit instead of two; pre-change and pre-restore commits only appear when files changed outside MCP.
+- `apply_changes` accepts an optional one-line `message` (1-200 characters) that becomes the checkpoint commit message.
+- Checkpoints are always committed as `Safe Workspace MCP <safe-workspace-mcp@local>`; `[git] author_name` / `author_email` set the author only, so automated snapshots stay distinguishable from human commits.
+- Commit messages are capped by bytes without splitting a multi-byte UTF-8 character.
+- `git.auto_checkpoint = false` is rejected at startup instead of being silently ignored.
+
 ## [0.1.1] - 2026-08-18
 
 ### Fixed (managed-repository lifecycle)
