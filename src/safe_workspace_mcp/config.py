@@ -131,7 +131,7 @@ def load_config(path: os.PathLike[str] | str) -> Config:
         require_expected_hash=_bool(write_raw, "require_expected_hash", True),
     )
     if write.allow_recursive_delete:
-        raise errors.ConfigError("allow_recursive_delete is not supported in v0.1.0")
+        raise errors.ConfigError("allow_recursive_delete is not supported")
 
     git_raw = data.get("git", {})
     git = GitPolicy(
@@ -144,13 +144,13 @@ def load_config(path: os.PathLike[str] | str) -> Config:
         author_email=_str(git_raw, "author_email", GitPolicy.author_email),
     )
     if git.mode != "managed":
-        raise errors.ConfigError("git.mode must be 'managed' in v0.1.0")
+        raise errors.ConfigError("git.mode must be 'managed'")
     if git.allow_existing_repository:
-        raise errors.ConfigError("adopting existing repositories is not supported in v0.1.0")
+        raise errors.ConfigError("adopting existing repositories is not supported")
     if git.allow_remotes:
-        raise errors.ConfigError("git remotes are not supported in v0.1.0")
+        raise errors.ConfigError("git remotes are not supported")
     if not git.enabled:
-        raise errors.ConfigError("git.enabled = false is not supported in v0.1.0")
+        raise errors.ConfigError("git.enabled = false is not supported")
     if not git.auto_checkpoint:
         # Rollback depends on the pre-change checkpoint, so it cannot be
         # switched off; reject instead of silently ignoring the setting.
@@ -169,7 +169,7 @@ def load_config(path: os.PathLike[str] | str) -> Config:
 
     transport = data.get("server", {}).get("transport", "stdio")
     if transport != "stdio":
-        raise errors.ConfigError("only stdio transport is supported in v0.1.0")
+        raise errors.ConfigError("only stdio transport is supported")
 
     return Config(
         root=root,

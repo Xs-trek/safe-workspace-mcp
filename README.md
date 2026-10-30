@@ -120,7 +120,7 @@ allow_delete_empty_directory = true
 require_expected_hash = true
 
 [git]
-mode = "managed"                # only mode in v0.1.2
+mode = "managed"                # only supported mode
 author_name = "Safe Workspace MCP"
 author_email = "safe-workspace-mcp@local"
 
@@ -128,7 +128,7 @@ author_email = "safe-workspace-mcp@local"
 include_hidden = false
 
 [server]
-transport = "stdio"             # only transport in v0.1.2
+transport = "stdio"             # only supported transport
 ```
 
 See `examples/` for minimal / existing-source / large-source variants.
@@ -208,12 +208,12 @@ Always configure ChatGPT manually in its UI.
 
 See `SECURITY.md` and `THREAT_MODEL.md` for the full analysis and residual risks.
 
-## Known limitations (v0.1.2)
+## Known limitations
 
 - Text (UTF-8) files only; binary files are refused.
 - Windows is the primary security target; Linux is supported and CI-tested.
 - No concurrent multi-client coordination beyond hash checks (run one writer).
-- Checkpoint history grows unboundedly (no gc in v0.1.2).
+- Checkpoint history grows unboundedly (no gc).
 - Restores are file-level; excluded directories are untouched by restore.
 
 ## Security reporting

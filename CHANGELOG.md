@@ -3,6 +3,17 @@
 All notable changes to this project are documented here.
 The format follows Keep a Changelog; versioning is SemVer.
 
+## [Unreleased]
+
+No change to the server's tools or behavior.
+
+### Fixed (documentation and release)
+- `SECURITY.md` pointed reporters to GitHub private vulnerability reporting, which is not enabled on the repository; it now describes a path that works either way and states the supported-versions policy.
+- `THIRD_PARTY_NOTICES.md` listed dependency versions from the 0.1.0 build and a package (`colorama`) that is no longer bundled; it now lists packages and licenses only, describes the bundled Python runtime correctly, and each release ZIP records its exact package versions in `BUILD-ENVIRONMENT.txt`.
+- Release notes are taken from this changelog (with the pinned tunnel-client version and checksums) instead of an auto-generated link only; the release workflow checks that the tag matches the package version and publishes with `gh` instead of a third-party action.
+- Documentation and configuration error messages no longer mention stale version numbers.
+- The test workflow runs with a read-only token.
+
 ## [0.1.2] - 2026-10-26
 
 ### Fixed

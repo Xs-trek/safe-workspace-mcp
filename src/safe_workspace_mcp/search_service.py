@@ -1,6 +1,6 @@
 """Literal text search over workspace text files.
 
-Pure Python, no external tools, no regex in v0.1.0, no symlink following,
+Pure Python, no external tools, no regex, no symlink following,
 never enters internal (.git) or excluded directories, results capped by
 max_search_results (truncation is reported, never silently extended).
 """

@@ -64,7 +64,7 @@ The launcher downloads and verifies the tested OpenAI `tunnel-client` automatica
 Download the Windows x64 ZIP from this project's GitHub Releases page:
 
 ```text
-safe-workspace-mcp-0.1.2-windows-x64.zip
+safe-workspace-mcp-<version>-windows-x64.zip
 ```
 
 Also download:
@@ -84,7 +84,7 @@ Do not download individual files from the source tree for normal portable use.
 Before extracting the ZIP, you can verify its SHA-256 checksum:
 
 ```powershell
-Get-FileHash ".\safe-workspace-mcp-0.1.2-windows-x64.zip" -Algorithm SHA256
+Get-FileHash ".\safe-workspace-mcp-<version>-windows-x64.zip" -Algorithm SHA256
 ```
 
 Compare the result with the matching entry in:
@@ -124,7 +124,7 @@ Do not copy only `safe-workspace-mcp.exe`.
 
 # 5. Prepare a workspace
 
-Safe Workspace MCP v0.1.2 uses one fixed workspace per running MCP instance.
+Safe Workspace MCP uses one fixed workspace per running MCP instance.
 
 For first use, an empty directory is recommended:
 
@@ -291,7 +291,7 @@ On the normal supported path, the launcher:
 
 (The MCP core, not the launcher, decides at startup whether an existing `.git` is the server's own managed repo - reopened - or a foreign repo - rejected. The launcher does not pre-check `.git`.)
 
-Safe Workspace MCP v0.1.2 pins a tested stable `tunnel-client` version.
+Safe Workspace MCP pins a tested stable `tunnel-client` version.
 
 The launcher output shows the pinned version at startup.
 
@@ -397,7 +397,7 @@ Accept ChatGPT's custom MCP security warning and complete the creation/tool-disc
 
 # 12. Verify discovered tools
 
-Safe Workspace MCP v0.1.2 should expose exactly nine tools:
+Safe Workspace MCP should expose exactly nine tools:
 
 ```text
 workspace_info
@@ -699,9 +699,9 @@ Do not store unrelated secrets inside a model-readable workspace.
 
 ---
 
-# 23. v0.1.2 limitations
+# 23. Limitations
 
-Safe Workspace MCP v0.1.2 intentionally has the following limitations:
+Safe Workspace MCP intentionally has the following limitations:
 
 - one process manages one fixed workspace
 - foreign existing `.git` repositories are not adopted; previously managed repositories are reopened
@@ -714,7 +714,7 @@ Safe Workspace MCP v0.1.2 intentionally has the following limitations:
 - no clone / fetch / pull / push
 - no dynamic workspace switching
 
-These restrictions are part of the v0.1.2 security design.
+These restrictions are part of the security design.
 
 ---
 

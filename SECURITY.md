@@ -103,9 +103,19 @@ Web content or repository text may instruct the model to make harmful edits. Thi
 - **TOCTOU**: path validation and the subsequent filesystem operation are not one atomic step. Mitigations: writes are atomic replaces, post-write re-validation, hardlink/reparse re-checks; the window is tiny and the attacker requires local code execution, at which point the OS is the relevant boundary.
 - **Same-user authority**: the server runs with your user's full filesystem authority; confinement is enforced by this program's logic, not by the OS. Do not run it against workspaces containing data you cannot afford to lose; rely on checkpoints.
 - **Excluded directories are not checkpointed**: contents the server cannot see cannot be restored by the server.
+- **Gitignored files are not checkpointed**: files matched by the workspace `.gitignore` are left untouched by rollback and `git_restore` (since 0.1.2), but they cannot be recovered from checkpoints either.
 - **Filenames that differ only by case** on case-sensitive filesystems are distinct files; on Windows they are the same file. The validator checks the resolved path, but cross-platform case-collision semantics are the OS's.
 - **Model-mediated data loss**: `git_restore` and `apply_changes` do what an injected prompt asks, within the workspace. Review `git_diff` before restores; keep pre-checkpoints (they are automatic).
 
+## Supported versions
+
+Only the latest release receives fixes. Check the [Releases](https://github.com/Xs-trek/safe-workspace-mcp/releases) page before reporting.
+
 ## Reporting
 
-Please use GitHub's private vulnerability reporting. Include the tool call JSON if applicable. Do not open public issues for exploitable behavior.
+Do not put exploit details in public.
+
+- If the repository's **Security** tab offers **Report a vulnerability**, use it; that report stays private.
+- Otherwise open a GitHub issue titled `Security contact request` that names only the affected version and component (no proof of concept, payloads, or tool-call JSON). The maintainer will reply with a private channel for the details.
+
+Once a private channel is established, include the tool call JSON if applicable.

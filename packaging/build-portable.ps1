@@ -1,12 +1,12 @@
 <#
 Build the Safe Workspace MCP portable Windows release ZIP.
-Usage (from repo root):  powershell -File packaging\build-portable.ps1 [-Version 0.1.0]
+Usage (from repo root):  powershell -File packaging\build-portable.ps1 -Version <x.y.z>
 Creates: dist\safe-workspace-mcp-<version>-windows-x64.zip and dist\SHA256SUMS.txt
 #>
 
 [CmdletBinding()]
 param(
-    [string]$Version = '0.1.0',
+    [Parameter(Mandatory = $true)][string]$Version,
     [string]$BuildVenv = (Join-Path -Path $env:TEMP -ChildPath 'opencode\build-venv')
 )
 
@@ -41,6 +41,13 @@ Copy-Item (Join-Path -Path $repo -ChildPath 'LICENSE') -Destination $stage
 Copy-Item (Join-Path -Path $repo -ChildPath 'THIRD_PARTY_NOTICES.md') -Destination $stage
 Copy-Item (Join-Path -Path $repo -ChildPath 'README-PORTABLE.md') -Destination $stage
 Copy-Item (Join-Path -Path $repo -ChildPath 'README-PORTABLE.zh-CN.md') -Destination $stage
+
+# Exact package versions this ZIP was built from (THIRD_PARTY_NOTICES.md lists licenses).
+$freeze = & $py -m pip freeze --all --exclude safe-workspace-mcp
+if ($LASTEXITCODE -ne 0) { throw 'pip freeze failed' }
+@('# Python packages in the build environment of this release.',
+  '# Runtime dependencies are bundled; PyInstaller and its helpers are build-only.') + $freeze |
+    Set-Content -LiteralPath (Join-Path -Path $stage -ChildPath 'BUILD-ENVIRONMENT.txt') -Encoding ascii
 
 $zip = Join-Path -Path $repo -ChildPath "dist\safe-workspace-mcp-$Version-windows-x64.zip"
 if (Test-Path -LiteralPath $zip) { Remove-Item -LiteralPath $zip -Force }

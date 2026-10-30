@@ -67,7 +67,7 @@ MCP 恰好暴露以下工具：
 普通 Windows 用户只需要从本项目的 **GitHub Releases** 页面下载：
 
 ```text
-safe-workspace-mcp-0.1.2-windows-x64.zip
+safe-workspace-mcp-<version>-windows-x64.zip
 ```
 
 建议同时下载：
@@ -85,7 +85,7 @@ SHA256SUMS.txt
 解压前可以验证 ZIP 的 SHA-256：
 
 ```powershell
-Get-FileHash ".\safe-workspace-mcp-0.1.2-windows-x64.zip" -Algorithm SHA256
+Get-FileHash ".\safe-workspace-mcp-<version>-windows-x64.zip" -Algorithm SHA256
 ```
 
 将结果与同一 GitHub Release 中：
@@ -127,7 +127,7 @@ THIRD_PARTY_NOTICES.md
 
 # 5. 准备 workspace
 
-Safe Workspace MCP v0.1.2 每个运行中的 MCP 实例只管理一个固定 workspace。
+Safe Workspace MCP 每个运行中的 MCP 实例只管理一个固定 workspace。
 
 首次使用建议创建一个空目录：
 
@@ -135,7 +135,7 @@ Safe Workspace MCP v0.1.2 每个运行中的 MCP 实例只管理一个固定 wor
 New-Item -ItemType Directory -Force "D:\ChatGPT_Workspace\my-project"
 ```
 
-v0.1.2 使用自己管理的本地 Git。workspace 不能已经包含**外部的** `.git` 仓库（即非 Safe Workspace MCP 创建的仓库）。首次启动时，服务会创建自己的 managed `.git` 并写入 `safe-workspace-mcp.managed-repository-format` 标记；之后再次启动会自动重新打开该 managed 仓库。普通的 `git init`、clone 或没有该标记的仓库会被拒绝（`EXISTING_GIT_REPOSITORY_NOT_SUPPORTED`）。
+Safe Workspace MCP 使用自己管理的本地 Git。workspace 不能已经包含**外部的** `.git` 仓库（即非 Safe Workspace MCP 创建的仓库）。首次启动时，服务会创建自己的 managed `.git` 并写入 `safe-workspace-mcp.managed-repository-format` 标记；之后再次启动会自动重新打开该 managed 仓库。普通的 `git init`、clone 或没有该标记的仓库会被拒绝（`EXISTING_GIT_REPOSITORY_NOT_SUPPORTED`）。
 
 如果你不确定目录是否已有 `.git`：
 
@@ -146,7 +146,7 @@ Test-Path "D:\ChatGPT_Workspace\my-project\.git"
 - 返回 `False`：可以首次使用，服务会创建 managed 仓库。
 - 返回 `True`：如果该目录之前已被 Safe Workspace MCP 使用过，则是 managed 仓库，会被自动重新打开；如果是你自己 `git init` 或 clone 的仓库，服务会拒绝，请改用空目录。
 
-v0.1.2 不接管已有 Git 仓库、worktree、submodule 或 remote。
+Safe Workspace MCP 不接管已有 Git 仓库、worktree、submodule 或 remote。
 
 首次测试重要项目时，建议先使用项目副本。
 
@@ -307,7 +307,7 @@ Runtime API Key 输入是隐藏的。
 
 （`.git` 是 managed 还是外部仓库，由 MCP 核心在启动时判断，而非 launcher 预检查；launcher 不检查 `.git`。）
 
-Safe Workspace MCP v0.1.2 固定使用经过项目实际验证的稳定 tunnel-client 版本。
+Safe Workspace MCP 固定使用经过项目实际验证的稳定 tunnel-client 版本。
 
 Launcher 启动时会显示当前 pin。
 
@@ -425,7 +425,7 @@ Safe Workspace MCP 本身不需要 OAuth。
 
 # 12. 检查工具发现
 
-Safe Workspace MCP v0.1.2 应恰好暴露 9 个工具：
+Safe Workspace MCP 应恰好暴露 9 个工具：
 
 ```text
 workspace_info
@@ -785,9 +785,9 @@ SHA-256
 
 ---
 
-# 23. v0.1.2 的设计限制
+# 23. 设计限制
 
-v0.1.2 有意限制为：
+当前版本有意限制为：
 
 - 一个进程 = 一个固定 workspace
 - 不接管外部已有 `.git` 仓库；Safe Workspace MCP 自己创建的 managed `.git` 可在后续启动时重新打开
@@ -800,7 +800,7 @@ v0.1.2 有意限制为：
 - 无 clone / fetch / pull / push
 - 无运行时动态切换 workspace
 
-这些限制属于 v0.1.2 的安全设计，不是缺失的安装步骤。
+这些限制属于当前版本的安全设计，不是缺失的安装步骤。
 
 ---
 
