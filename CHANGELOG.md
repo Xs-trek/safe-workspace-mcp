@@ -13,7 +13,7 @@ No change to the server's tools or behavior.
 - Release notes are taken from this changelog (with the pinned tunnel-client version and checksums) instead of an auto-generated link only; the release workflow checks that the tag matches the package version and publishes with `gh` instead of a third-party action.
 - Documentation and configuration error messages no longer mention stale version numbers.
 - The test workflow runs with a read-only token.
-- README: security reporting now points to `SECURITY.md`; the recoverability claim states the `.gitignore` exception (also in `THREAT_MODEL.md`); fixed the MCP Inspector command; Linux source-install commands; new section on using other stdio MCP clients without the tunnel; documents the `apply_changes` `message` parameter.
+- README: security reporting now points to `SECURITY.md`; the recoverability claim states the `.gitignore` exception (also in `THREAT_MODEL.md`); fixed the MCP Inspector command; Linux source-install commands; documents the `apply_changes` `message` parameter.
 
 ## [0.1.2] - 2026-10-26
 

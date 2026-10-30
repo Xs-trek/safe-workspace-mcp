@@ -182,39 +182,6 @@ npx @modelcontextprotocol/inspector .venv\Scripts\safe-workspace-mcp path\to\con
 
 (Or `mcp dev` from the MCP SDK CLI.) Verify `tools/list` shows exactly nine tools, the read-only annotations are correct, and exercise read → search → apply_changes → git_diff/git_history/git_restore against a disposable workspace first.
 
-## Other MCP clients (stdio, no tunnel)
-
-The server is a standard stdio MCP server, so any client that launches local stdio servers (for example Claude Desktop or Codex CLI) can use it directly — no tunnel, tunnel ID or Runtime API Key needed. The portable ZIP works too: `safe-workspace-mcp\safe-workspace-mcp.exe` takes the config path as its only argument.
-
-1. Write a config file yourself (the launcher normally generates it), e.g. `D:\mcp\demo.toml`:
-
-   ```toml
-   [workspace]
-   root = "D:/work/demo"
-
-   [server]
-   transport = "stdio"
-   ```
-
-   See `examples/` and [Configuration](#configuration) for all options.
-
-2. Register the server in your client. The common `mcpServers` JSON form:
-
-   ```json
-   {
-     "mcpServers": {
-       "safe-workspace": {
-         "command": "D:\\tools\\safe-workspace-mcp-<version>-windows-x64\\safe-workspace-mcp\\safe-workspace-mcp.exe",
-         "args": ["D:\\mcp\\demo.toml"]
-       }
-     }
-   }
-   ```
-
-   From a source checkout, use `.venv\Scripts\safe-workspace-mcp` (Linux: `.venv/bin/safe-workspace-mcp`) as the command.
-
-Use one config (and one client entry) per workspace.
-
 ## Connecting ChatGPT Desktop / ChatGPT Web
 
 ChatGPT reaches a local MCP server through OpenAI's Secure MCP Tunnel (Developer Mode / connectors). **This project is only the stdio server plus an operator-run launcher** - it contains no tunnel transport, no OAuth, no credentials storage, and it never reads or writes ChatGPT/Codex configuration.
