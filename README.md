@@ -74,7 +74,7 @@ structured file CRUD   managed local Git checkpoints
 | `git_history` | ✓ | Checkpoint list (newest first) |
 | `git_restore` | ✗ | Restore workspace to a checkpoint (auto-checkpoints current state first, so restores are undoable) |
 
-`apply_changes` operations all validate first (paths, hashes, policy, plan conflicts); if anything fails, **nothing** is applied. On mid-execution failure everything is rolled back.
+`apply_changes` operations all validate first (paths, hashes, policy, plan conflicts); if anything fails, **nothing** is applied. On mid-execution failure everything is rolled back. An optional one-line `message` becomes the checkpoint's commit message.
 
 ## Installation
 
@@ -86,8 +86,8 @@ Two supported paths:
 ```
 git clone https://github.com/Xs-trek/safe-workspace-mcp.git
 cd safe-workspace-mcp
-py -3.12 -m venv .venv
-.venv\Scripts\pip install -e .
+py -3.12 -m venv .venv            # Linux: python3.12 -m venv .venv
+.venv\Scripts\pip install -e .    # Linux: .venv/bin/pip install -e .
 ```
 
 Runtime dependencies: `mcp==2.0.0` (official SDK), `dulwich==1.2.6`, Python stdlib. Nothing else. End-user prerequisites for the portable release are only: Windows 10/11, PowerShell, internet for the tunnel, a workspace folder, tunnel ID + Runtime API Key, and your own ChatGPT account setup.
@@ -144,7 +144,7 @@ On first start with an **empty or plain source directory** (no `.git`), the serv
 
 On subsequent starts, the server **reopens its own managed repo** (identified by the marker). A workspace containing a foreign `.git` (plain `git init`, a clone, or a repo without the managed marker) is rejected with `EXISTING_GIT_REPOSITORY_NOT_SUPPORTED`. Adopting existing repositories, worktrees, submodules, and remotes remains out of scope.
 
-**Editable ⇒ Recoverable**: every regular file the MCP can modify or delete is tracked in the managed repository, so it can always be restored from a checkpoint. Excluded directories (node_modules, build artifacts, virtualenvs, …) are invisible to every tool — not readable, not writable, not searched, not checkpointed.
+**Editable ⇒ Recoverable**: every regular file the MCP can modify or delete is tracked in the managed repository, so it can always be restored from a checkpoint — **except files matched by the workspace `.gitignore`**: they stay editable but are never checkpointed, so rollback and `git_restore` leave them untouched and cannot recover them. Excluded directories (node_modules, build artifacts, virtualenvs, …) are invisible to every tool — not readable, not writable, not searched, not checkpointed.
 
 ## Running
 
@@ -177,10 +177,43 @@ Point `workspace.root` at an existing source directory **without** `.git`. The i
 ## Testing with MCP Inspector
 
 ```
-npx @modelcontextprotocol/inspector .venv\Scripts\safe-workspace-mcp -- args/config.toml
+npx @modelcontextprotocol/inspector .venv\Scripts\safe-workspace-mcp path\to\config.toml
 ```
 
 (Or `mcp dev` from the MCP SDK CLI.) Verify `tools/list` shows exactly nine tools, the read-only annotations are correct, and exercise read → search → apply_changes → git_diff/git_history/git_restore against a disposable workspace first.
+
+## Other MCP clients (stdio, no tunnel)
+
+The server is a standard stdio MCP server, so any client that launches local stdio servers (for example Claude Desktop or Codex CLI) can use it directly — no tunnel, tunnel ID or Runtime API Key needed. The portable ZIP works too: `safe-workspace-mcp\safe-workspace-mcp.exe` takes the config path as its only argument.
+
+1. Write a config file yourself (the launcher normally generates it), e.g. `D:\mcp\demo.toml`:
+
+   ```toml
+   [workspace]
+   root = "D:/work/demo"
+
+   [server]
+   transport = "stdio"
+   ```
+
+   See `examples/` and [Configuration](#configuration) for all options.
+
+2. Register the server in your client. The common `mcpServers` JSON form:
+
+   ```json
+   {
+     "mcpServers": {
+       "safe-workspace": {
+         "command": "D:\\tools\\safe-workspace-mcp-<version>-windows-x64\\safe-workspace-mcp\\safe-workspace-mcp.exe",
+         "args": ["D:\\mcp\\demo.toml"]
+       }
+     }
+   }
+   ```
+
+   From a source checkout, use `.venv\Scripts\safe-workspace-mcp` (Linux: `.venv/bin/safe-workspace-mcp`) as the command.
+
+Use one config (and one client entry) per workspace.
 
 ## Connecting ChatGPT Desktop / ChatGPT Web
 
@@ -214,11 +247,11 @@ See `SECURITY.md` and `THREAT_MODEL.md` for the full analysis and residual risks
 - Windows is the primary security target; Linux is supported and CI-tested.
 - No concurrent multi-client coordination beyond hash checks (run one writer).
 - Checkpoint history grows unboundedly (no gc).
-- Restores are file-level; excluded directories are untouched by restore.
+- Restores are file-level; excluded directories and gitignored files are untouched by restore.
 
 ## Security reporting
 
-Please open a private security advisory (GitHub "Report a vulnerability") rather than a public issue.
+Do not post exploit details publicly; follow the steps in [SECURITY.md](SECURITY.md#reporting).
 
 ## License
 
