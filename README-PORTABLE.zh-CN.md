@@ -1,5 +1,7 @@
 # Safe Workspace MCP — Windows 便携版使用指南
 
+> **项目状态：将于 2026 年 12 月 1 日停止使用。** OpenAI 已宣布，自该日起 ChatGPT 与 Codex 共用同一个用量额度。本项目的初衷是利用 ChatGPT 对话侧此前独立且宽裕的额度进行本地开发，额度合并后这一前提不复存在，项目不再计划继续开发。已发布的版本在 OpenAI Secure MCP Tunnel 与 ChatGPT 开发者模式连接器可用期间仍可正常使用。
+
 Safe Workspace MCP 允许 ChatGPT 在**一个固定的本地工作区**中进行受控文件操作，并使用受管理的本地 Git checkpoint 提供修改历史与恢复能力。
 
 本指南面向直接从 GitHub Releases 下载 Windows 便携版的普通用户。

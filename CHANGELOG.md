@@ -7,6 +7,9 @@ The format follows Keep a Changelog; versioning is SemVer.
 
 No change to the server's tools or behavior.
 
+### Project status
+- End of life on December 1, 2026: OpenAI has announced that ChatGPT and Codex share a single usage allowance from that date, which removes the project's purpose. Notice added to `README.md` and both portable guides; no further development is planned.
+
 ### Fixed (documentation and release)
 - `SECURITY.md` pointed reporters to GitHub private vulnerability reporting, which is not enabled on the repository; it now describes a path that works either way and states the supported-versions policy.
 - `THIRD_PARTY_NOTICES.md` listed dependency versions from the 0.1.0 build and a package (`colorama`) that is no longer bundled; it now lists packages and licenses only, describes the bundled Python runtime correctly, and each release ZIP records its exact package versions in `BUILD-ENVIRONMENT.txt`.

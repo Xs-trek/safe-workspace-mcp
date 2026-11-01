@@ -1,5 +1,12 @@
 # safe-workspace-mcp
 
+> [!IMPORTANT]
+> **Project status: end of life on December 1, 2026.**
+>
+> This project exists to let ChatGPT's chat-side usage allowance, which has been metered separately from Codex and much larger, do controlled reads and writes in a local workspace, so development can continue when Codex limits run out.
+> OpenAI has announced that from December 1, 2026, ChatGPT and Codex will share a single, token-based usage allowance on Plus, Pro and Business plans. From then on this project no longer offers an advantage over using Codex directly, and no further development is planned.
+> Existing releases keep working for as long as OpenAI's Secure MCP Tunnel and ChatGPT developer-mode connectors do.
+
 A minimal, security-focused [MCP](https://modelcontextprotocol.io) server that provides structured read/write access to **exactly one local workspace**, with built-in local Git checkpoints and rollback.
 
 Designed to let a chat model (e.g. ChatGPT with MCP support) safely edit files in one project folder - and nothing else.
