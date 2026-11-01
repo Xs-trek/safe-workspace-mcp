@@ -1,6 +1,8 @@
 # Safe Workspace MCP — Windows Portable Guide
 
 > **Project status: end of life on December 1, 2026.** OpenAI has announced that from that date ChatGPT and Codex share a single usage allowance, which removes the reason this project exists (using ChatGPT's separate chat allowance for local development). No further development is planned; existing releases keep working for as long as OpenAI's Secure MCP Tunnel and ChatGPT developer-mode connectors do.
+>
+> **项目状态：** 自 2026 年 12 月 1 日起 ChatGPT 与 Codex 共用同一用量额度，本项目随之失去意义，不再计划继续开发；已发布版本仍可使用。完整中文说明见 `README-PORTABLE.zh-CN.md`。
 
 Safe Workspace MCP gives ChatGPT controlled access to one fixed local workspace, with managed local Git checkpoints and rollback.
 

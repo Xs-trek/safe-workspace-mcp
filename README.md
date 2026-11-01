@@ -6,6 +6,8 @@
 > This project exists to let ChatGPT's chat-side usage allowance, which has been metered separately from Codex and much larger, do controlled reads and writes in a local workspace, so development can continue when Codex limits run out.
 > OpenAI has announced that from December 1, 2026, ChatGPT and Codex will share a single, token-based usage allowance on Plus, Pro and Business plans. From then on this project no longer offers an advantage over using Codex directly, and no further development is planned.
 > Existing releases keep working for as long as OpenAI's Secure MCP Tunnel and ChatGPT developer-mode connectors do.
+>
+> **项目状态：** 自 2026 年 12 月 1 日起 ChatGPT 与 Codex 共用同一用量额度，本项目（利用 ChatGPT 对话额度进行本地受控开发）随之失去意义，不再计划继续开发；已发布版本仍可使用。
 
 A minimal, security-focused [MCP](https://modelcontextprotocol.io) server that provides structured read/write access to **exactly one local workspace**, with built-in local Git checkpoints and rollback.
 
